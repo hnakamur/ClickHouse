@@ -7,6 +7,7 @@
 #include <Functions/FunctionsConversion.h>
 #include <Functions/Conditional/getArrayType.h>
 #include <Functions/Conditional/CondException.h>
+#include <Functions/GatherUtils.h>
 #include <Common/HashTable/HashMap.h>
 #include <Common/HashTable/ClearableHashMap.h>
 #include <Parsers/ExpressionListParsers.h>
@@ -2873,6 +2874,109 @@ void FunctionArrayReduce::executeImpl(Block & block, const ColumnNumbers & argum
     else
     {
         block.getByPosition(result).column = block.getByPosition(result).type->createConstColumn(rows, res_col[0]);
+    }
+}
+
+/// Implementation of FunctionArrayConcat.
+
+FunctionPtr FunctionArrayConcat::create(const Context & context)
+{
+    return std::make_shared<FunctionArrayConcat>();
+}
+
+String FunctionArrayConcat::getName() const
+{
+    return name;
+}
+
+DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) const
+{
+    bool has_nullable = false;
+    DataTypePtr common_type;
+
+    for (size_t i : ext::range(0, arguments.size()))
+    {
+        const auto & argument = arguments[i];
+        auto data_type_array = checkAndGetDataType<DataTypeArray>(argument.get());
+        if (!data_type_array)
+            throw Exception("Argument " + toString(i) + " for function " + getName() + " must be an array but it has type "
+                            + argument->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+
+        DataTypePtr nested_type = data_type_array->getNestedType();
+        if (nested_type->isNullable())
+        {
+            has_nullable = true;
+            auto nullable_type = static_cast<const DataTypeNullable *>(nested_type.get());
+            nested_type = nullable_type->getNestedType();
+        }
+
+        if (!common_type)
+            common_type = nested_type;
+        else if (!common_type->equals(*nested_type.get()))
+            throw Exception("Arguments for function " + getName() + " has different nested types: "
+                            + common_type->getName() + " and " + nested_type->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+    }
+
+    if (has_nullable)
+        common_type = std::make_shared<DataTypeNullable>(common_type);
+
+    return std::make_shared<DataTypeArray>(common_type);
+}
+
+void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
+{
+    std::vector<GenericArraySource> sources;
+    std::vector<ColumnPtr> columns;
+    auto & result_column = block.getByPosition(result).column;
+    ColumnPtr column_with_result_type = block.getByPosition(arguments.front()).column;
+    bool is_nullable_result = false;
+    size_t size = 0;
+
+    for (auto argument : arguments)
+    {
+        auto argument_column = block.getByPosition(argument).column;
+        auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
+        if (checkColumn<ColumnNullable>(&argument_column_array->getData()))
+        {
+            is_nullable_result = true;
+            column_with_result_type = argument_column;
+        }
+        size = argument_column->size();
+    }
+
+    result_column = column_with_result_type->cloneEmpty();
+
+    for (auto argument : arguments)
+    {
+        auto argument_column = block.getByPosition(argument).column;
+        auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
+        size = argument_column->size();
+
+        if (is_nullable_result)
+        {
+            if (!checkColumn<ColumnNullable>(&argument_column_array->getData()))
+            {
+                ColumnPtr null_map = std::make_shared<ColumnUInt8>(argument_column->size(), 0);
+                argument_column = std::make_shared<ColumnArray>(
+                        std::make_shared<ColumnNullable>(argument_column_array->getDataPtr(), null_map),
+                        argument_column_array->getOffsetsColumn()
+                );
+            }
+            columns.push_back(argument_column);
+            sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
+        }
+    }
+
+    GenericArraySink sink(typeid_cast<ColumnArray &>(*result_column.get()), size);
+
+    while (!sink.isEnd())
+    {
+        for (auto & source : sources)
+        {
+            writeSlice(source.getWhole(), sink);
+            source.next();
+        }
+        sink.next();
     }
 }
 
