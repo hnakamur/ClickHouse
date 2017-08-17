@@ -2957,7 +2957,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
         {
             if (!checkColumn<ColumnNullable>(&argument_column_array->getData()))
             {
-                ColumnPtr null_map = std::make_shared<ColumnUInt8>(argument_column->size(), 0);
+                ColumnPtr null_map = std::make_shared<ColumnUInt8>(argument_column_array->getData().size(), 0);
                 argument_column = std::make_shared<ColumnArray>(
                         std::make_shared<ColumnNullable>(argument_column_array->getDataPtr(), null_map),
                         argument_column_array->getOffsetsColumn()
