@@ -2927,10 +2927,9 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
 void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
 {
     std::cerr << block.dumpStructure() << std::endl;
-    std::vector<GenericArraySource> sources;
-    std::vector<ColumnPtr> columns;
     auto & result_column = block.getByPosition(result).column;
-    ColumnPtr column_with_result_type = block.getByPosition(arguments.front()).column;
+
+    ColumnPtr column_to_clone_for_result = block.getByPosition(arguments.front()).column;
     bool is_nullable_result = false;
     size_t size = 0;
 
@@ -2941,12 +2940,14 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
         if (checkColumn<ColumnNullable>(&argument_column_array->getData()))
         {
             is_nullable_result = true;
-            column_with_result_type = argument_column;
+            column_to_clone_for_result = argument_column;
+            break;
         }
         size = argument_column->size();
     }
 
-    result_column = column_with_result_type->cloneEmpty();
+    std::vector<ColumnPtr> nullable_columns_holder;
+    std::vector<GenericArraySource> sources;
 
     for (auto argument : arguments)
     {
@@ -2963,11 +2964,12 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
                         argument_column_array->getOffsetsColumn()
                 );
             }
-            columns.push_back(argument_column);
+            nullable_columns_holder.push_back(argument_column);
         }
         sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
     }
 
+    result_column = column_to_clone_for_result->cloneEmpty();
     GenericArraySink sink(typeid_cast<ColumnArray &>(*result_column.get()), size);
 
     while (!sink.isEnd())
