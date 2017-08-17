@@ -2964,8 +2964,8 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
                 );
             }
             columns.push_back(argument_column);
-            sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
         }
+        sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
     }
 
     GenericArraySink sink(typeid_cast<ColumnArray &>(*result_column.get()), size);
