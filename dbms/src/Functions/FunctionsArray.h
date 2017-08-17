@@ -1409,7 +1409,7 @@ private:
 class FunctionArrayConcat : public IFunction
 {
 public:
-    static constexpr auto name = "arrayConcat";
+    static constexpr auto name = "concat";
     static FunctionPtr create(const Context & context);
 
     String getName() const override;
