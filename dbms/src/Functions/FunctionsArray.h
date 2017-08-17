@@ -1420,6 +1420,8 @@ public:
     DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override;
 
     void executeImpl(Block & block, const ColumnNumbers & arguments, size_t result) override;
+
+    bool useDefaultImplementationForConstants() const override { return true; }
 };
 
 
