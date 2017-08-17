@@ -2948,6 +2948,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 
     std::vector<ColumnPtr> nullable_columns_holder;
     std::vector<GenericArraySource> sources;
+    size_t size_to_reserve = 0;
 
     for (auto argument : arguments)
     {
@@ -2967,10 +2968,12 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
             nullable_columns_holder.push_back(argument_column);
         }
         sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
+        size_to_reserve += sources.back().getSizeForReserve();
     }
 
     result_column = column_to_clone_for_result->cloneEmpty();
     GenericArraySink sink(typeid_cast<ColumnArray &>(*result_column.get()), size);
+    sink.reserve(size_to_reserve);
 
     while (!sink.isEnd())
     {

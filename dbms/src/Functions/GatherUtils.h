@@ -44,8 +44,11 @@ struct NumericArraySlice
 };
 
 
+struct IArraySource {};
+
+
 template <typename T>
-struct NumericArraySource
+struct NumericArraySource : public IArraySource
 {
     using Slice = NumericArraySlice<T>;
     using Column = ColumnArray;
@@ -60,6 +63,8 @@ struct NumericArraySource
         : elements(typeid_cast<const ColumnVector<T> &>(arr.getData()).getData()), offsets(arr.getOffsets())
     {
     }
+
+    NumericArraySource(const NumericArraySource<T> & other) : elements(other.elements), offsets(other.offsets) {}
 
     void next()
     {
@@ -499,7 +504,7 @@ struct GenericArraySlice
 };
 
 
-struct GenericArraySource
+struct GenericArraySource : public IArraySource
 {
     using Slice = GenericArraySlice;
     using Column = ColumnArray;
@@ -514,6 +519,8 @@ struct GenericArraySource
         : elements(arr.getData()), offsets(arr.getOffsets())
     {
     }
+
+    GenericArraySource(const GenericArraySource & other) : elements(elements), offsets(offsets) {}
 
     void next()
     {
@@ -609,6 +616,104 @@ struct GenericArraySink
         elements.reserve(num_elements);
     }
 };
+
+
+template <typename Slice>
+struct NullableArraySlice : public Slice
+{
+    UInt8 * null_map;
+};
+
+
+template <typename ArraySource>
+struct NullableArraySource : public ArraySource
+{
+    using Slice = NullableArraySlice<ArraySource::Slice>;
+
+    const typename ColumnUInt8 & null_map;
+
+    NullableArraySource(const ColumnArray & arr, const ColumnUInt8 & null_map)
+            : ArraySource(arr), null_map(null_map)
+    {
+    }
+
+    Slice getWhole() const
+    {
+        Slice slice = ArraySource::getWhole();
+        slice.null_map = &null_map[prev_offset];
+        return slice;
+    }
+
+    Slice getSliceFromLeft(size_t offset) const
+    {
+        Slice slice = ArraySource::getSliceFromLeft(offset);
+        if (!slice.size)
+            slice.null_map = &null_map[prev_offset];
+        else
+            slice.null_map = &null_map[prev_offset + offset];
+        return slice;
+    }
+
+    Slice getSliceFromLeft(size_t offset, size_t length) const
+    {
+        Slice slice = ArraySource::getSliceFromLeft(offset, length);
+        if (!slice.size)
+            slice.null_map = &null_map[prev_offset];
+        else
+            slice.null_map = &null_map[prev_offset + offset];
+        return slice;
+    }
+
+    Slice getSliceFromRight(size_t offset) const
+    {
+        Slice slice = ArraySource::getSliceFromRight(offset);
+        if (!slice.size)
+            slice.null_map = &null_map[prev_offset];
+        else
+            slice.null_map = &null_map[offsets[row_num] - offset];
+        return slice;
+    }
+
+    Slice getSliceFromRight(size_t offset, size_t length) const
+    {
+        Slice slice = ArraySource::getSliceFromRight(offset, length);
+        if (!slice.size)
+            slice.null_map = &null_map[prev_offset];
+        else
+            slice.null_map = &null_map[offsets[row_num] - offset];
+        return slice;
+    }
+};
+
+template <typename ArraySink>
+struct NullableArraySink : public ArraySink
+{
+    ColumnUInt8 & null_map;
+
+    NullableArraySink(ColumnArray & arr, ColumnUInt8 & null_map, size_t column_size)
+        : ArraySink(arr, column_size), null_map(null_map)
+    {
+        null_map.resize(column_size);
+    }
+
+    void reserve(size_t num_elements)
+    {
+        ArraySink::reserve(num_elements);
+        null_map.reserve(num_elements);
+    }
+};
+
+
+
+
+inline std::unique_ptr<IArraySource> createArraySource(const ColumnArray & col)
+{
+    if (auto column_nullable = typeid_cast<const ColumnNullable *>(&col.getData()))
+    {
+        ColumnArray cloumn(column_nullable->getNestedColumn(), col.getOffsetsColumn());
+
+    }
+}
 
 
 template <typename T>
@@ -735,12 +840,21 @@ inline ALWAYS_INLINE void writeSlice(const GenericArraySlice & slice, GenericArr
     sink.current_offset += slice.size;
 }
 
-template <typename T, typename U>
-void ALWAYS_INLINE writeSlice(const NumericSlice<T> & slice, NumericSink<U> & sink)
+/// Assuming same types of underlying columns for slice and sink if (ArraySlice, ArraySink) is (GenericArraySlice, GenericArraySink).
+template <typename ArraySlice, typename ArraySink>
+inline ALWAYS_INLINE void writeSlice(const NullableArraySlice<ArraySlice> & slice, NullableArraySink<ArraySink> & sink)
 {
-    *sink.pos = *slice;
+    memcpySmallAllowReadWriteOverflow15(&sink.null_map[sink.current_offset], slice.null_map, slice.size * sizeof(UInt8));
+    writeSlice(static_cast<const ArraySlice &>(slice), static_cast<ArraySink &>(sink));
 }
 
+/// Assuming same types of underlying columns for slice and sink if (ArraySlice, ArraySink) is (GenericArraySlice, GenericArraySink).
+template <typename ArraySlice, typename ArraySink>
+inline ALWAYS_INLINE void writeSlice(const ArraySlice & slice, NullableArraySink<ArraySink> & sink)
+{
+    memset(&sink.null_map[sink.current_offset], 0, slice.size * sizeof(UInt8));
+    writeSlice(slice, static_cast<ArraySink &>(sink));
+}
 
 /// Algorithms
 
