@@ -19,6 +19,7 @@
 #include <Columns/ColumnAggregateFunction.h>
 #include <tuple>
 #include <array>
+#include <iostream>
 
 
 namespace DB
@@ -2925,6 +2926,7 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
 
 void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
 {
+    std::cerr << block.dumpStructure() << std::endl;
     std::vector<GenericArraySource> sources;
     std::vector<ColumnPtr> columns;
     auto & result_column = block.getByPosition(result).column;
