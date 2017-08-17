@@ -2974,10 +2974,13 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     {
         for (auto & source : sources)
         {
-            writeSlice(source.getWhole(), sink);
+            auto slice = source.getWhole();
+            std::cerr << slice.size << std::endl;
+            writeSlice(slice, sink);
             source.next();
         }
         sink.next();
+        std::cerr << sink.elements.size() << std::endl;
     }
     std::cerr << block.dumpStructure() << std::endl;
 }
