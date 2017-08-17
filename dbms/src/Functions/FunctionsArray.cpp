@@ -2948,7 +2948,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 
     for (auto argument : arguments)
     {
-        const auto & argument_column = block.getByPosition(argument).column;
+        auto & argument_column = block.getByPosition(argument).column;
         auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
         size = argument_column->size();
 
