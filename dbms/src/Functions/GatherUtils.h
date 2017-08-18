@@ -630,6 +630,7 @@ struct NullableArraySource : public ArraySource
     using Slice = NullableArraySlice<typename ArraySource::Slice>;
     using ArraySource::prev_offset;
     using ArraySource::row_num;
+    using ArraySource::offsets;
 
     const ColumnUInt8 & null_map;
 
@@ -706,7 +707,7 @@ struct NullableArraySink : public ArraySink
 template <typename List>
 std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, const ColumnUInt8 * null_map)
 {
-    using Type = List::Head;
+    using Type = typename List::Head;
     if (typeid_cast<ColumnVector<Type> *>(&col.getData()))
     {
         if (null_map)
@@ -714,7 +715,7 @@ std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, con
         return std::make_unique<NumericArraySource<Type>>(col);
     }
 
-    return createArraySourceImpl<List::Tail>(col, null_map);
+    return createArraySourceImpl<typename List::Tail>(col, null_map);
 }
 
 template <typename List>
@@ -739,7 +740,7 @@ inline std::unique_ptr<IArraySource> createArraySource(ColumnArray & col)
 template < typename List>
 std::unique_ptr<IArraySink> createArraySinkImpl(ColumnArray & col, ColumnUInt8 * null_map, size_t column_size)
 {
-    using Type = List::Head;
+    using Type = typename List::Head;
     if (typeid_cast<ColumnVector<Type> *>(&col.getData()))
     {
         if (null_map)
@@ -747,7 +748,7 @@ std::unique_ptr<IArraySink> createArraySinkImpl(ColumnArray & col, ColumnUInt8 *
         return std::make_unique<NumericArraySink<Type>>(col, column_size);
     }
 
-    return createArraySinkImpl<List::Tail>(col, null_map, column_size);
+    return createArraySinkImpl<typename List::Tail>(col, null_map, column_size);
 }
 
 template <typename List>
@@ -947,13 +948,13 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
 template <typename List, typename SourceA, typename SourceB>
 void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
 {
-    using Type = List::Head;
+    using Type = typename List::Head;
     if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
         concat(src_a, src_b, *nullable_numeric_sink);
     else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
         concat(src_a, src_b, *numeric_sink);
     else
-        concatImpl<List::Tail, SourceA, SourceB>(src_a, src_b, sink);
+        concatImpl<typename List::Tail, SourceA, SourceB>(src_a, src_b, sink);
 }
 
 template <typename List, typename SourceA, typename SourceB>
@@ -970,13 +971,13 @@ void concatImpl<TypeList<>, SourceA, SourceB>(SourceA & src_a, SourceB & src_b, 
 template <typename List, typename SourceA>
 void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
 {
-    using Type = List::Head;
+    using Type = typename List::Head;
     if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
         concatImpl<TypeListNumber, SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
     else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
         concatImpl<TypeListNumber, SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
     else
-        concatImpl<List::Tail, SourceA>(src_a, src_b, sink);
+        concatImpl<typename List::Tail, SourceA>(src_a, src_b, sink);
 }
 
 template <typename List, typename SourceA>
@@ -993,13 +994,13 @@ void concatImpl<TypeList<>, SourceA>(SourceA & src_a, IArraySource & src_b, IArr
 template <typename List>
 void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
 {
-    using Type = List::Head;
+    using Type = typename List::Head;
     if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
         concatImpl<TypeListNumber, NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b, sink);
     else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_a))
         concatImpl<TypeListNumber, NumericArraySource<Type>>(*numeric_source, src_b, sink);
     else
-        concatImpl<List::Tail>(src_a, src_b, sink);
+        concatImpl<typename List::Tail>(src_a, src_b, sink);
 }
 
 template <typename List>
