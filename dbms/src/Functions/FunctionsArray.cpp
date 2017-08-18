@@ -2892,6 +2892,28 @@ String FunctionArrayConcat::getName() const
 
 DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) const
 {
+    if (arguments.empty())
+        throw Exception{"Function array requires at least one argument.", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH};
+
+    if (foundNumericType(arguments))
+    {
+        /// Since we have found at least one numeric argument, we infer that all
+        /// the arguments are numeric up to nullity. Let's determine the least
+        /// common type.
+        auto enriched_result_type = Conditional::getArrayType(arguments);
+        return std::make_shared<DataTypeArray>(enriched_result_type);
+    }
+    else
+    {
+        /// Otherwise all the arguments must have the same type up to nullability or nullity.
+        if (!hasArrayIdenticalTypes(arguments))
+            throw Exception{"Arguments for function array must have same type or behave as number.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
+
+        return std::make_shared<DataTypeArray>(getArrayElementType(arguments));
+    }
+
+
+
     bool has_nullable = false;
     DataTypePtr common_type;
 
@@ -2928,21 +2950,15 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 {
     std::cerr << block.dumpStructure() << std::endl;
     auto & result_column = block.getByPosition(result).column;
+    const DataTypePtr & return_type = block.getByPosition(result).type;
+    result_column = return_type->createColumn();
 
-    ColumnPtr column_to_clone_for_result = block.getByPosition(arguments.front()).column;
-    bool is_nullable_result = false;
     size_t size = 0;
 
     for (auto argument : arguments)
     {
         const auto & argument_column = block.safeGetByPosition(argument).column;
         auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
-        if (checkColumn<ColumnNullable>(&argument_column_array->getData()))
-        {
-            is_nullable_result = true;
-            column_to_clone_for_result = argument_column;
-            break;
-        }
         size = argument_column->size();
     }
 
@@ -2952,12 +2968,9 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     {
         auto & argument_column = block.getByPosition(argument).column;
         auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
-
-
         sources.emplace_back(createArraySource(*argument_column_array));
     }
 
-    result_column = column_to_clone_for_result->cloneEmpty();
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
     arrayConcat(*sources[0], *sources[1], *sink);
 
