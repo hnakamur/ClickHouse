@@ -1020,19 +1020,19 @@ struct ConcatImpl<Type, Types ...>
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
             concat(src_a, src_b, *numeric_sink);
         else
-            ConcatImpl<Types ...>::concatImpl<SourceA, SourceB>(src_a, src_b, sink);
+            ConcatImpl<Types ...>::template concatImpl<SourceA, SourceB>(src_a, src_b, sink);
     }
 
     template <typename SourceA>
     static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        using Impl = typename ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
         if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
             Impl::concatImpl<SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
         else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
             Impl::concatImpl<SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
         else
-            ConcatImpl<Types ...>::concatImpl<SourceA>(src_a, src_b, sink);
+            ConcatImpl<Types ...>::template concatImpl<SourceA>(src_a, src_b, sink);
     }
 
     static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
