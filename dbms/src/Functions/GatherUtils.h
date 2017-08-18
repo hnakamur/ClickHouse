@@ -54,8 +54,14 @@ struct NumericArraySlice
 };
 
 
-struct IArraySource {};
-struct IArraySink {};
+struct IArraySource
+{
+    virtual ~IArraySource() {}
+};
+struct IArraySink 
+{
+    virtual ~IArraySink() {}
+};
 
 
 template <typename T>
