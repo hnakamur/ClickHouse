@@ -15,6 +15,7 @@
 #include <Common/typeid_cast.h>
 #include <Common/memcpySmall.h>
 #include <Core/TypeListNumber.h>
+#include <typeindex>
 
 
 /** These methods are intended for implementation of functions, that
@@ -890,10 +891,43 @@ inline ALWAYS_INLINE void writeSlice(const StringSource::Slice & slice, FixedStr
     memcpySmallAllowReadWriteOverflow15(&sink.elements[sink.current_offset], slice.data, slice.size);
 }
 
-/// Assuming same types of underlying columns for slice and sink.
 inline ALWAYS_INLINE void writeSlice(const GenericArraySlice & slice, GenericArraySink & sink)
 {
-    sink.elements.insertRangeFrom(*slice.elements, slice.begin, slice.size);
+    if (std::type_index(typeid(slice.elements)) == std::type_index(typeid(&sink.elements)))
+        sink.elements.insertRangeFrom(*slice.elements, slice.begin, slice.size);
+    else
+    {
+        for (size_t i = 0; i < slice.size; ++i)
+        {
+            Field field;
+            slice.elements->get(slice.begin + i, field);
+            sink.elements.insert(field);
+        }
+    }
+    sink.current_offset += slice.size;
+}
+
+template <typename T>
+inline ALWAYS_INLINE void writeSlice(const GenericArraySlice & slice, NumericArraySink<T> & sink)
+{
+    sink.elements.resize(sink.current_offset + slice.size);
+    for (size_t i = 0; i < slice.size; ++i)
+    {
+        Field field;
+        slice.elements->get(slice.begin + i, field);
+        sink.elements.push_back(field.get<T>());
+    }
+    sink.current_offset += slice.size;
+}
+
+template <typename T>
+inline ALWAYS_INLINE void writeSlice(const NumericArraySlice<T> & slice, GenericArraySink & sink)
+{
+    for (size_t i = 0; i < slice.size; ++i)
+    {
+        Field field(slice.data[i]);
+        sink.elements.insert(field);
+    }
     sink.current_offset += slice.size;
 }
 
@@ -931,6 +965,12 @@ void NO_INLINE concat(SourceA & src_a, SourceB & src_b, Sink & sink)
         src_a.next();
         src_b.next();
     }
+}
+
+template <typename SourceA, typename SourceB, typename Sink>
+void NO_INLINE concat(SourceA && src_a, SourceB && src_b, Sink && sink)
+{
+    concat(src_a, src_b, sink);
 }
 
 template <typename Sink>
@@ -980,8 +1020,8 @@ void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
             concatImpl<TypeListNumber, SourceA, NullableArraySource<GenericArraySource>>(src_a,
                                                                                          *nullable_generic_source,
                                                                                          sink);
-        else if (auto generic_source = typeid_cast<GenericArraySink *>(&src_b))
-            concatImpl<TypeListNumber, SourceA, GenericArraySink>(src_a, *generic_source, sink);
+        else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_b))
+            concatImpl<TypeListNumber, SourceA, GenericArraySource>(src_a, *generic_source, sink);
         else
             throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
     }
@@ -1006,8 +1046,8 @@ void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
     {
         if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_a))
             concatImpl<TypeListNumber, NullableArraySource<GenericArraySource>>(*nullable_generic_source, src_b, sink);
-        else if (auto generic_source = typeid_cast<GenericArraySink *>(&src_a))
-            concatImpl<TypeListNumber, GenericArraySink>(*generic_source, src_b, sink);
+        else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_a))
+            concatImpl<TypeListNumber, GenericArraySource>(*generic_source, src_b, sink);
         else
             throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
     }
