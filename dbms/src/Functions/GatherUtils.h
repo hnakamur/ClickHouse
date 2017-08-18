@@ -708,18 +708,14 @@ struct NullableArraySink : public ArraySink
     }
 };
 
-template <typename List>
-std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, const ColumnUInt8 * null_map)
+template <typename ... Types>
+struct ArraySourceCreator;
+
+template <typename Type, typename ... Types>
+struct ArraySourceCreator<Type, Types ...>
 {
-    if (List::is_empty)
+    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
     {
-        if (null_map)
-            return std::make_unique<NullableArraySource<GenericArraySource>>(col, *null_map);
-        return std::make_unique<GenericArraySource>(col);
-    }
-    else
-    {
-        using Type = typename List::Head;
         if (typeid_cast<const ColumnVector<Type> *>(&col.getData()))
         {
             if (null_map)
@@ -727,33 +723,41 @@ std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, con
             return std::make_unique<NumericArraySource<Type>>(col);
         }
 
-        return createArraySourceImpl<typename List::Tail>(col, null_map);
+        return ArraySourceCreator<Types...>::create(col, null_map);
     }
-}
+};
+
+template <>
+struct ArraySourceCreator<>
+{
+    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
+    {
+        if (null_map)
+            return std::make_unique<NullableArraySource<GenericArraySource>>(col, *null_map);
+        return std::make_unique<GenericArraySource>(col);
+    }
+};
 
 inline std::unique_ptr<IArraySource> createArraySource(const ColumnArray & col)
 {
+    using Creator = typename ApplyTypeListForClass<ArraySourceCreator, TypeListNumber>::Type;
     if (auto column_nullable = typeid_cast<const ColumnNullable *>(&col.getData()))
     {
         ColumnArray column(column_nullable->getNestedColumn(), col.getOffsetsColumn());
-        return createArraySourceImpl<TypeListNumber>(column, &column_nullable->getNullMapConcreteColumn());
+        return Creator::create(column, &column_nullable->getNullMapConcreteColumn());
     }
-    return createArraySourceImpl<TypeListNumber>(col, nullptr);
+    return Creator::create(col, nullptr);
 }
 
 
-template < typename List>
-std::unique_ptr<IArraySink> createArraySinkImpl(ColumnArray & col, ColumnUInt8 * null_map, size_t column_size)
+template <typename ... Types>
+struct ArraySinkCreator;
+
+template <typename Type, typename ... Types>
+struct ArraySinkCreator<Type, Types ...>
 {
-    if (List::is_empty)
+    static std::unique_ptr<IArraySink> create(ColumnArray & col, ColumnUInt8 * null_map, size_t column_size)
     {
-        if (null_map)
-            return std::make_unique<NullableArraySink<GenericArraySink>>(col, *null_map, column_size);
-        return std::make_unique<GenericArraySink>(col, column_size);
-    }
-    else
-    {
-        using Type = typename List::Head;
         if (typeid_cast<ColumnVector<Type> *>(&col.getData()))
         {
             if (null_map)
@@ -761,19 +765,30 @@ std::unique_ptr<IArraySink> createArraySinkImpl(ColumnArray & col, ColumnUInt8 *
             return std::make_unique<NumericArraySink<Type>>(col, column_size);
         }
 
-        return createArraySinkImpl<typename List::Tail>(col, null_map, column_size);
+        return ArraySinkCreator<Types ...>::create(col, null_map, column_size);
     }
-}
+};
 
+template <>
+struct ArraySinkCreator<>
+{
+    static std::unique_ptr<IArraySink> create(ColumnArray & col, ColumnUInt8 * null_map, size_t column_size)
+    {
+        if (null_map)
+            return std::make_unique<NullableArraySink<GenericArraySink>>(col, *null_map, column_size);
+        return std::make_unique<GenericArraySink>(col, column_size
+    }
+};
 
 inline std::unique_ptr<IArraySink> createArraySink(ColumnArray & col, size_t column_size)
 {
+    using Creator = ApplyTypeListForClass<ArraySinkCreator, TypeListNumber>::Type;
     if (auto column_nullable = typeid_cast<ColumnNullable *>(&col.getData()))
     {
         ColumnArray column(column_nullable->getNestedColumn(), col.getOffsetsColumn());
-        return createArraySinkImpl<TypeListNumber>(column, &column_nullable->getNullMapConcreteColumn(), column_size);
+        return Creator::create(column, &column_nullable->getNullMapConcreteColumn(), column_size);
     }
-    return createArraySinkImpl<TypeListNumber>(col, nullptr, column_size);
+    return Creator::create(col, nullptr, column_size);
 }
 
 
@@ -928,7 +943,7 @@ inline ALWAYS_INLINE void writeSlice(const NumericArraySlice<T> & slice, Generic
 {
     for (size_t i = 0; i < slice.size; ++i)
     {
-        Field field(slice.data[i]);
+        Field field = slice.data[i];
         sink.elements.insert(field);
     }
     sink.current_offset += slice.size;
@@ -990,10 +1005,53 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
     }
 }
 
-template <typename List, typename SourceA, typename SourceB>
-void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
+
+template <typename ... Types>
+struct ConcatImpl;
+
+template <typename Type, typename ... Types>
+struct ConcatImpl<Type, Types ...>
 {
-    if (List::is_empty)
+    template <typename SourceA, typename SourceB>
+    static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
+    {
+        if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
+            concat(src_a, src_b, *nullable_numeric_sink);
+        else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
+            concat(src_a, src_b, *numeric_sink);
+        else
+            ConcatImpl<Types ...>::concatImpl<SourceA, SourceB>(src_a, src_b, sink);
+    }
+
+    template <typename SourceA>
+    static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
+    {
+        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
+            Impl::concatImpl<SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
+        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
+            Impl::concatImpl<SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
+        else
+            ConcatImpl<Types ...>::concatImpl<SourceA>(src_a, src_b, sink);
+    }
+
+    static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
+    {
+        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
+            Impl::concatImpl<NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b, sink);
+        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_a))
+            Impl::concatImpl<NumericArraySource<Type>>(*numeric_source, src_b, sink);
+        else
+            ConcatImpl<Types ...>::concatImpl(src_a, src_b, sink);
+    }
+};
+
+template <>
+struct ConcatImpl<>
+{
+    template <typename SourceA, typename SourceB>
+    static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
             concat(src_a, src_b, *nullable_generic_sink);
@@ -1002,74 +1060,35 @@ void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
         else
             throw Exception("Unknown ArraySink type", ErrorCodes::LOGICAL_ERROR);
     }
-    else
-    {
-        using Type = typename List::Head;
-        if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
-            concat(src_a, src_b, *nullable_numeric_sink);
-        else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
-            concat(src_a, src_b, *numeric_sink);
-        else
-            concatImpl<typename List::Tail, SourceA, SourceB>(src_a, src_b, sink);
-    }
-}
 
-template <typename List, typename SourceA>
-void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
-{
-    if (List::is_empty)
+    template <typename SourceA>
+    static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
     {
+        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
         if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_b))
-            concatImpl<TypeListNumber, SourceA, NullableArraySource<GenericArraySource>>(src_a,
-                                                                                         *nullable_generic_source,
-                                                                                         sink);
+            Impl::concatImpl<SourceA, NullableArraySource<GenericArraySource>>(src_a, *nullable_generic_source, sink);
         else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_b))
-            concatImpl<TypeListNumber, SourceA, GenericArraySource>(src_a, *generic_source, sink);
+            Impl::concatImpl<SourceA, GenericArraySource>(src_a, *generic_source, sink);
         else
             throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
     }
-    else
-    {
-        using Type = typename List::Head;
-        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
-            concatImpl<TypeListNumber, SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a,
-                                                                                               *nullable_numeric_source,
-                                                                                               sink);
-        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
-            concatImpl<TypeListNumber, SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
-        else
-            concatImpl<typename List::Tail, SourceA>(src_a, src_b, sink);
-    }
-}
 
-template <typename List>
-void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
-{
-    if (List::is_empty)
+    static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
     {
+        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
         if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_a))
-            concatImpl<TypeListNumber, NullableArraySource<GenericArraySource>>(*nullable_generic_source, src_b, sink);
+            Impl::concatImpl<NullableArraySource<GenericArraySource>>(*nullable_generic_source, src_b, sink);
         else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_a))
-            concatImpl<TypeListNumber, GenericArraySource>(*generic_source, src_b, sink);
+            Impl::concatImpl<GenericArraySource>(*generic_source, src_b, sink);
         else
             throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
     }
-    else
-    {
-        using Type = typename List::Head;
-        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
-            concatImpl<TypeListNumber, NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b,
-                                                                                      sink);
-        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_a))
-            concatImpl<TypeListNumber, NumericArraySource<Type>>(*numeric_source, src_b, sink);
-        else
-            concatImpl<typename List::Tail>(src_a, src_b, sink);
-    }
-}
+};
 
 void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
 {
-    concatImpl<TypeListNumber>(src_a, src_b, sink);
+    using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+    return Impl::concatImpl(src_a, src_b, sink);
 }
 
 template <typename Source, typename Sink>

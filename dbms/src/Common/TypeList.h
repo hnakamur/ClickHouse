@@ -9,16 +9,12 @@ struct TypeList;
 template<>
 struct TypeList<>
 {
-    static constexpr bool is_empty = true;
 };
 
-template <typename Type, typename ... Types>
-struct TypeList<Type, Types ...>
+template <typename Class, template <typename ... Types> typename List>
+struct ApplyTypeListForClass
 {
-    using Head = Type;
-    using Tail = TypeList<Types ...>;
-
-    static constexpr bool is_empty = false;
+    using Type = typename Class<Types ...>;
 };
 
 
