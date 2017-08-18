@@ -2947,7 +2947,6 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     }
 
     std::vector<std::unique_ptr<IArraySource>> sources;
-    size_t size_to_reserve = 0;
 
     for (auto argument : arguments)
     {
@@ -2956,11 +2955,10 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 
 
         sources.emplace_back(createArraySource(*argument_column_array));
-        size_to_reserve += argument_column_array->getData().size();
     }
 
     result_column = column_to_clone_for_result->cloneEmpty();
-    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size_to_reserve);
+    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
     arrayConcat(*sources[0], *sources[1], *sink);
 
     std::cerr << block.dumpStructure() << std::endl;

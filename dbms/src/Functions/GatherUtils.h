@@ -58,7 +58,7 @@ struct IArraySource
 {
     virtual ~IArraySource() {}
 };
-struct IArraySink 
+struct IArraySink
 {
     virtual ~IArraySink() {}
 };
