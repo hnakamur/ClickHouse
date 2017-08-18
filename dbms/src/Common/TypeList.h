@@ -22,13 +22,13 @@ template <template <typename ...> typename Class, template <typename ...> typena
 struct ApplyTypeListForClass;
 
 template <template <typename ...> typename Class, template <typename Type, typename ...> typename List, typename ... Types>
-struct ApplyTypeListForClass<Class, List>
+struct ApplyTypeListForClass<Class, List, Types ...>
 {
     using Type = typename ApplyTypeListForClass<Class, typename List::Tail, Type, Types>::Type;
 };
 
 template <template <typename ...> typename Class, template <> typename List, typename ... Types>
-struct ApplyTypeListForClass
+struct ApplyTypeListForClass<Class, List, Types ...>
 {
     using Type = typename Class<Types ...>;
 };
