@@ -24,7 +24,7 @@ struct ApplyTypeListForClass;
 template <template <typename ...> typename Class, template <typename Type, typename ...> typename List, typename ... Types>
 struct ApplyTypeListForClass<Class, List, Types ...>
 {
-    using Type = typename ApplyTypeListForClass<Class, typename List::Tail, Type, Types>::Type;
+    using Type = typename ApplyTypeListForClass<Class, typename List::Tail, Type, Types ...>::Type;
 };
 
 template <template <typename ...> typename Class, template <> typename List, typename ... Types>
