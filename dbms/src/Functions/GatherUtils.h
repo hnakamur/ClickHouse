@@ -1014,7 +1014,7 @@ void concatImpl<TypeList>(IArraySource & src_a, IArraySource & src_b, IArraySink
         throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
 }
 
-void concat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
+void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
 {
     concatImpl<TypeListNumber>(src_a, src_b, sink);
 }

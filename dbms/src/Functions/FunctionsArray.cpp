@@ -2961,7 +2961,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 
     result_column = column_to_clone_for_result->cloneEmpty();
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size_to_reserve);
-    concat(*sources[0], *sources[1], sink);
+    arrayConcat(*sources[0], *sources[1], *sink);
 
     std::cerr << block.dumpStructure() << std::endl;
 }
