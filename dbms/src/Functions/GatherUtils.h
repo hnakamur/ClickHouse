@@ -723,8 +723,10 @@ struct ArraySourceCreator<Type, Types ...>
 {
     static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
     {
+        std::cerr << "Numeric " << typeid(Type).name() << std::endl;
         if (typeid_cast<const ColumnVector<Type> *>(&col.getData()))
         {
+            std::cerr << "Created" << typeid(NumericArraySource<Type>).name() << std::endl;
             if (null_map)
                 return std::make_unique<NullableArraySource<NumericArraySource<Type>>>(col, *null_map);
             return std::make_unique<NumericArraySource<Type>>(col);
@@ -739,6 +741,7 @@ struct ArraySourceCreator<>
 {
     static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
     {
+        std::cerr << "Generic " << typeid(GenericArraySource).name() << std::endl;
         if (null_map)
             return std::make_unique<NullableArraySource<GenericArraySource>>(col, *null_map);
         return std::make_unique<GenericArraySource>(col);
