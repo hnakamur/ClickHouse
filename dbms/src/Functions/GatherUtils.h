@@ -776,7 +776,7 @@ struct ArraySinkCreator<>
     {
         if (null_map)
             return std::make_unique<NullableArraySink<GenericArraySink>>(col, *null_map, column_size);
-        return std::make_unique<GenericArraySink>(col, column_size
+        return std::make_unique<GenericArraySink>(col, column_size);
     }
 };
 
