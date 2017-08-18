@@ -1090,7 +1090,7 @@ struct ArrayConcatImpl<>
     }
 };
 
-void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
+inline void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
 {
     using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
     return Impl::concatImpl(src_a, src_b, sink);
