@@ -2974,7 +2974,6 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     arrayConcat(*sources[0], *sources[1], *sink);
 
     std::cerr << block.dumpStructure() << std::endl;
-    std::cerr << size << ' ' << is_nullable_result << std::endl;
 }
 
 }
