@@ -621,7 +621,10 @@ struct GenericArraySink : public IArraySink
 template <typename Slice>
 struct NullableArraySlice : public Slice
 {
-    UInt8 * null_map;
+    const UInt8 * null_map;
+
+    NullableArraySlice() {}
+    NullableArraySlice(const Slice & base) : Slice(base) {}
 };
 
 
@@ -691,10 +694,10 @@ struct NullableArraySource : public ArraySource
 template <typename ArraySink>
 struct NullableArraySink : public ArraySink
 {
-    ColumnUInt8 & null_map;
+    ColumnUInt8::Container_t & null_map;
 
     NullableArraySink(ColumnArray & arr, ColumnUInt8 & null_map, size_t column_size)
-        : ArraySink(arr, column_size), null_map(null_map)
+        : ArraySink(arr, column_size), null_map(null_map.getData())
     {
     }
 
