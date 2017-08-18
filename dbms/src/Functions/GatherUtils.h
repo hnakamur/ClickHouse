@@ -633,10 +633,10 @@ struct NullableArraySource : public ArraySource
     using ArraySource::row_num;
     using ArraySource::offsets;
 
-    const ColumnUInt8 & null_map;
+    const ColumnUInt8::Container_t & null_map;
 
     NullableArraySource(const ColumnArray & arr, const ColumnUInt8 & null_map)
-            : ArraySource(arr), null_map(null_map)
+            : ArraySource(arr), null_map(null_map.getData())
     {
     }
 
