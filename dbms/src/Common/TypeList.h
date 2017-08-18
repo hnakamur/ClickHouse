@@ -11,12 +11,10 @@ struct TypeList<>
 {
 };
 
-template <typename Class, template <typename ... Types> typename List>
+template <template <typename ...> typename Class, template <typename ... Types> typename List>
 struct ApplyTypeListForClass
 {
     using Type = typename Class<Types ...>;
 };
-
-
 
 }
