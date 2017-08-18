@@ -1007,10 +1007,10 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
 
 
 template <typename ... Types>
-struct ConcatImpl;
+struct ArrayConcatImpl;
 
 template <typename Type, typename ... Types>
-struct ConcatImpl<Type, Types ...>
+struct ArrayConcatImpl<Type, Types ...>
 {
     template <typename SourceA, typename SourceB>
     static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
@@ -1020,35 +1020,35 @@ struct ConcatImpl<Type, Types ...>
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
             concat(src_a, src_b, *numeric_sink);
         else
-            ConcatImpl<Types ...>::template concatImpl<SourceA, SourceB>(src_a, src_b, sink);
+            ArrayConcatImpl<Types ...>::template concatImpl<SourceA, SourceB>(src_a, src_b, sink);
     }
 
     template <typename SourceA>
     static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        using Impl = typename ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        using Impl = typename ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
             Impl::concatImpl<SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
         else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
             Impl::concatImpl<SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
         else
-            ConcatImpl<Types ...>::template concatImpl<SourceA>(src_a, src_b, sink);
+            ArrayConcatImpl<Types ...>::template concatImpl<SourceA>(src_a, src_b, sink);
     }
 
     static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
             Impl::concatImpl<NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b, sink);
         else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_a))
             Impl::concatImpl<NumericArraySource<Type>>(*numeric_source, src_b, sink);
         else
-            ConcatImpl<Types ...>::concatImpl(src_a, src_b, sink);
+            ArrayConcatImpl<Types ...>::concatImpl(src_a, src_b, sink);
     }
 };
 
 template <>
-struct ConcatImpl<>
+struct ArrayConcatImpl<>
 {
     template <typename SourceA, typename SourceB>
     static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
@@ -1064,7 +1064,7 @@ struct ConcatImpl<>
     template <typename SourceA>
     static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_b))
             Impl::concatImpl<SourceA, NullableArraySource<GenericArraySource>>(src_a, *nullable_generic_source, sink);
         else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_b))
@@ -1075,7 +1075,7 @@ struct ConcatImpl<>
 
     static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_a))
             Impl::concatImpl<NullableArraySource<GenericArraySource>>(*nullable_generic_source, src_b, sink);
         else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_a))
@@ -1087,7 +1087,7 @@ struct ConcatImpl<>
 
 void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
 {
-    using Impl = ApplyTypeListForClass<ConcatImpl, TypeListNumber>::Type;
+    using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
     return Impl::concatImpl(src_a, src_b, sink);
 }
 
