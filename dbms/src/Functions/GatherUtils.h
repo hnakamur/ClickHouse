@@ -943,7 +943,7 @@ inline ALWAYS_INLINE void writeSlice(const NumericArraySlice<T> & slice, Generic
 {
     for (size_t i = 0; i < slice.size; ++i)
     {
-        Field field = slice.data[i];
+        Field field = static_cast<typename NearestFieldType<T>::Type>(slice.data[i]);
         sink.elements.insert(field);
     }
     sink.current_offset += slice.size;
