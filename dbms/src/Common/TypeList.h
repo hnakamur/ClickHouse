@@ -19,7 +19,7 @@ struct TypeList<>
 };
 
 template <template <typename ...> typename Class, typename List, typename ... Types>
-struct ApplyTypeListForClass<Class, List, Types ...>
+struct ApplyTypeListForClass
 {
     using Type = typename ApplyTypeListForClass<Class, typename List::Tail, typename List::Head, Types ...>::Type;
 };
