@@ -1022,7 +1022,7 @@ struct ArrayConcatImpl<Type, Types ...>
     template <typename SourceA, typename SourceB>
     static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
     {
-        std::cerr << "Imp1 " << typeid(Type).name() << std::endl;
+        std::cerr << "Imp1 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
             concat(src_a, src_b, *nullable_numeric_sink);
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
@@ -1034,7 +1034,7 @@ struct ArrayConcatImpl<Type, Types ...>
     template <typename SourceA>
     static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        std::cerr << "Imp2 " << typeid(Type).name() << std::endl;
+        std::cerr << "Imp2 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
         using Impl = typename ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
             Impl::concatImpl<SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
@@ -1046,7 +1046,7 @@ struct ArrayConcatImpl<Type, Types ...>
 
     static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
     {
-        std::cerr << "Imp2 " << typeid(Type).name() << std::endl;
+        std::cerr << "Imp3 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
         using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
         if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
             Impl::concatImpl<NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b, sink);
