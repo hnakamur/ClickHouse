@@ -717,7 +717,7 @@ std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, con
     else
     {
         using Type = typename List::Head;
-        if (typeid_cast<ColumnVector<Type> *>(&col.getData()))
+        if (typeid_cast<const ColumnVector<Type> *>(&col.getData()))
         {
             if (null_map)
                 return std::make_unique<NullableArraySource<NumericArraySource<Type>>>(col, *null_map);
@@ -728,9 +728,9 @@ std::unique_ptr<IArraySource> createArraySourceImpl(const ColumnArray & col, con
     }
 }
 
-inline std::unique_ptr<IArraySource> createArraySource(ColumnArray & col)
+inline std::unique_ptr<IArraySource> createArraySource(const ColumnArray & col)
 {
-    if (auto column_nullable = typeid_cast<ColumnNullable *>(&col.getData()))
+    if (auto column_nullable = typeid_cast<const ColumnNullable *>(&col.getData()))
     {
         ColumnArray column(column_nullable->getNestedColumn(), col.getOffsetsColumn());
         return createArraySourceImpl<TypeListNumber>(column, &column_nullable->getNullMapConcreteColumn());
