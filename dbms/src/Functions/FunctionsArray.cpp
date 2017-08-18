@@ -2946,8 +2946,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
         size = argument_column->size();
     }
 
-    std::vector<ColumnPtr> nullable_columns_holder;
-    std::vector<GenericArraySource> sources;
+    std::vector<std::unique_ptr<IArraySource>> sources;
     size_t size_to_reserve = 0;
 
     for (auto argument : arguments)
@@ -2955,38 +2954,15 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
         auto & argument_column = block.getByPosition(argument).column;
         auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
 
-        if (is_nullable_result)
-        {
-            if (!checkColumn<ColumnNullable>(&argument_column_array->getData()))
-            {
-                ColumnPtr null_map = std::make_shared<ColumnUInt8>(argument_column_array->getData().size(), 0);
-                argument_column = std::make_shared<ColumnArray>(
-                        std::make_shared<ColumnNullable>(argument_column_array->getDataPtr(), null_map),
-                        argument_column_array->getOffsetsColumn()
-                );
-            }
-            nullable_columns_holder.push_back(argument_column);
-        }
-        sources.emplace_back(static_cast<ColumnArray &>(*argument_column.get()));
-        size_to_reserve += sources.back().getSizeForReserve();
+
+        sources.emplace_back(createArraySource(*argument_column_array));
+        size_to_reserve += argument_column_array->getData().size();
     }
 
     result_column = column_to_clone_for_result->cloneEmpty();
-    GenericArraySink sink(typeid_cast<ColumnArray &>(*result_column.get()), size);
-    sink.reserve(size_to_reserve);
+    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size_to_reserve);
+    concat(*sources[0], *sources[1], sink);
 
-    while (!sink.isEnd())
-    {
-        for (auto & source : sources)
-        {
-            auto slice = source.getWhole();
-            std::cerr << slice.size << std::endl;
-            writeSlice(slice, sink);
-            source.next();
-        }
-        sink.next();
-        std::cerr << sink.elements.size() << std::endl;
-    }
     std::cerr << block.dumpStructure() << std::endl;
 }
 
