@@ -15,8 +15,10 @@
 #include <Common/typeid_cast.h>
 #include <Common/memcpySmall.h>
 #include <Core/TypeListNumber.h>
-#include <typeindex>
 
+#include <DataTypes/DataTypeTraits.h>
+#include <iostream>
+#include <typeindex>
 
 /** These methods are intended for implementation of functions, that
   *  copy ranges from one or more columns to another column.
@@ -1020,6 +1022,7 @@ struct ArrayConcatImpl<Type, Types ...>
     template <typename SourceA, typename SourceB>
     static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
     {
+        std::cerr << "Imp1 " << CreateDataTypeObject<Type, false>::execute()->getName() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
             concat(src_a, src_b, *nullable_numeric_sink);
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
