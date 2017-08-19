@@ -6,6 +6,7 @@
 #include <Storages/AlterCommands.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTNameTypePair.h>
+#include <Parsers/ExpressionListParsers.h>
 #include <DataStreams/ExpressionBlockInputStream.h>
 #include <DataStreams/copyData.h>
 #include <IO/WriteBufferFromFile.h>
@@ -58,6 +59,7 @@ namespace DB
 namespace ErrorCodes
 {
     extern const int MEMORY_LIMIT_EXCEEDED;
+    extern const int SYNTAX_ERROR;
 }
 
 
@@ -122,6 +124,7 @@ MergeTreeData::MergeTreeData(
         throw Exception("Primary key could be empty only for UnsortedMergeTree", ErrorCodes::BAD_ARGUMENTS);
 
     initPrimaryKey();
+    initPartitionKey();
 
     /// Creating directories, if not exist.
     Poco::File(full_path).createDirectories();
@@ -189,6 +192,23 @@ void MergeTreeData::initPrimaryKey()
     primary_key_data_types.resize(primary_key_size);
     for (size_t i = 0; i < primary_key_size; ++i)
         primary_key_data_types[i] = primary_key_sample.getByPosition(i).type;
+}
+
+
+void MergeTreeData::initPartitionKey()
+{
+    String partition_expr_str = "toYYYYMM(" + date_column_name + ")";
+    Tokens tokens(partition_expr_str.data(), partition_expr_str.data() + partition_expr_str.size());
+    ParserNotEmptyExpressionList parser(/* allow_alias_without_as_keyword = */ false);
+    TokenIterator token_it(tokens);
+    Expected expected;
+    bool parsed = parser.parse(token_it, partition_expr_ast, expected);
+    if (!parsed || !token_it->isEnd())
+        throw Exception("Can't parse partition expression: `" + partition_expr_str + "`", ErrorCodes::SYNTAX_ERROR);
+
+    partition_expr = ExpressionAnalyzer(partition_expr_ast, context, nullptr, getColumnsList()).getActions(false);
+    for (const ASTPtr & ast : partition_expr_ast->children)
+        partition_expr_columns.emplace_back(ast->getColumnName());
 }
 
 

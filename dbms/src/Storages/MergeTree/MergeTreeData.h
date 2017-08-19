@@ -477,6 +477,10 @@ public:
     Block primary_key_sample;
     DataTypes primary_key_data_types;
 
+    ASTPtr partition_expr_ast;
+    ExpressionActionsPtr partition_expr;
+    Names partition_expr_columns;
+
     /// Limiting parallel sends per one table, used in DataPartsExchange
     std::atomic_uint current_table_sends {0};
 
@@ -535,6 +539,8 @@ private:
     void checkNoMultidimensionalArrays(const NamesAndTypesList & columns, bool attach) const;
 
     void initPrimaryKey();
+
+    void initPartitionKey();
 
     /// Expression for column type conversion.
     /// If no conversions are needed, out_expression=nullptr.
