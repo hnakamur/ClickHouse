@@ -1107,6 +1107,8 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
             sink.offsets[i] += offsets[i];
     }
 
+    sink.reserve(elements_to_reserve);
+
     for (const auto & source : sources)
     {
         append<Sink>(*source, sink);
