@@ -20,7 +20,7 @@ struct TypeList<>
 
 /// Append Type to TypeList
 /// Usage:
-///     using TypeListWithType = AppendToTypeList<Type, ConcreteTypeList>::Type;
+///     using TypeListWithType = typename AppendToTypeList<Type, ConcreteTypeList>::Type;
 template <typename TypeToAppend, typename List, typename ... Types>
 struct AppendToTypeList
 {
@@ -35,7 +35,7 @@ struct AppendToTypeList<TypeToAppend, TypeList<>, Types ...>
 
 /// Apply TypeList as variadic template argument of Class.
 /// Usage:
-///     using ClassWithAppliedTypeList = ApplyTypeListForClass<Class, ConcreteTypeList>::Type;
+///     using ClassWithAppliedTypeList = typename ApplyTypeListForClass<Class, ConcreteTypeList>::Type;
 template <template <typename ...> typename Class, typename List, typename ... Types>
 struct ApplyTypeListForClass
 {

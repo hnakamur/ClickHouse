@@ -1050,8 +1050,8 @@ struct ArrayAppend<Sink>
 template <typename Sink>
 static void append(const IArraySource & source, Sink & sink)
 {
-    using List = AppendToTypeList<Sink, TypeListNumber>::Type;
-    using AppendImpl = ApplyTypeListForClass<List, ArrayAppend>::Type;
+    using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
+    using AppendImpl = typename ApplyTypeListForClass<List, ArrayAppend>::Type;
     AppendImpl::append(source, sink);
 }
 
