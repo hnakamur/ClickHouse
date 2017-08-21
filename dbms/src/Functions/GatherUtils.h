@@ -1011,8 +1011,9 @@ static void append (Source & source, Sink & sink)
     sink.row_num = 0;
     while (!source.isEnd())
     {
+        sink.current_offset = sink.offsets[sink.row_num];
         writeSlice(source.getWhole(), sink);
-        ++sink.row_num;
+        sink.next();
         source.next();
     }
 }
@@ -1097,15 +1098,17 @@ template <typename Sink>
 void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
 {
     size_t elements_to_reserve = 0;
-    /// Prepare offsets column.
+    /// Prepare offsets column. Offsets should point to starts of result arrays.
     for (const auto & source : sources)
     {
         elements_to_reserve += source->getSizeForReserve();
         const auto & offsets = source->getOffsets();
         sink.offsets.resize_fill(offsets.size());
-        for (size_t i : ext::range(0, offsets.size()))
-            sink.offsets[i] += offsets[i] - (i ? offsets[i - 1] : 0);
+        for (size_t i : ext::range(1, offsets.size()))
+            sink.offsets[i] += offsets[i] - offsets[i - 1];
     }
+
+    sink.offsets[0] = 0;
     for (size_t i : ext::range(1, sink.offsets.size()))
         sink.offsets[i] += sink.offsets[i - 1];
 
