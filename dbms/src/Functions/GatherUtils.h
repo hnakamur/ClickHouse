@@ -1123,7 +1123,7 @@ struct ArrayConcat<Type, Types ...>
     {
         std::cerr << "ArrayConcat " << typeid(Type).name() << typeid(sink).name() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
-            concat<NullableArraySink<NumericArraySink<Type>>(sources, *nullable_numeric_sink);
+            concat<NullableArraySink<NumericArraySink<Type>>>(sources, *nullable_numeric_sink);
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
             concat<NumericArraySink<Type>>(sources, *numeric_sink);
         else
