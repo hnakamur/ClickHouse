@@ -1134,7 +1134,7 @@ struct ArrayConcat<Type, Types ...>
 template <>
 struct ArrayConcat<>
 {
-    static void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
+    static void concatImpl(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
             concat<NullableArraySink<GenericArraySink>>(sources, *nullable_generic_sink);
