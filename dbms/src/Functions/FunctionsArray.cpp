@@ -2899,12 +2899,13 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
     nested_types.reserve(arguments.size());
     for (size_t i : ext::range(0, arguments.size()))
     {
-        const auto & argument = arguments[i];
-        auto data_type_array = checkAndGetDataType<DataTypeArray>(argument.get());
-        if (!data_type_array)
+        auto argument = arguments[i].get();
+
+        if (auto data_type_array = checkAndGetDataType<DataTypeArray>(argument))
+            nested_types.push_back(data_type_array->getNestedType());
+        else
             throw Exception("Argument " + toString(i) + " for function " + getName() + " must be an array but it has type "
                             + argument->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-        nested_types.push_back(data_type_array->getNestedType());
     }
 
     if (foundNumericType(nested_types))
@@ -2923,39 +2924,6 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
 
         return std::make_shared<DataTypeArray>(getArrayElementType(nested_types));
     }
-
-    /*
-    bool has_nullable = false;
-    DataTypePtr common_type;
-
-    for (size_t i : ext::range(0, arguments.size()))
-    {
-        const auto & argument = arguments[i];
-        auto data_type_array = checkAndGetDataType<DataTypeArray>(argument.get());
-        if (!data_type_array)
-            throw Exception("Argument " + toString(i) + " for function " + getName() + " must be an array but it has type "
-                            + argument->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-
-        DataTypePtr nested_type = data_type_array->getNestedType();
-        if (nested_type->isNullable())
-        {
-            has_nullable = true;
-            auto nullable_type = static_cast<const DataTypeNullable *>(nested_type.get());
-            nested_type = nullable_type->getNestedType();
-        }
-
-        if (!common_type)
-            common_type = nested_type;
-        else if (!common_type->equals(*nested_type.get()))
-            throw Exception("Arguments for function " + getName() + " has different nested types: "
-                            + common_type->getName() + " and " + nested_type->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-    }
-
-    if (has_nullable)
-        common_type = std::make_shared<DataTypeNullable>(common_type);
-
-    return std::make_shared<DataTypeArray>(common_type);
-    */
 }
 
 void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
@@ -2977,15 +2945,26 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
 
     for (auto argument : arguments)
     {
-        auto & argument_column = block.getByPosition(argument).column;
-        auto argument_column_array = typeid_cast<ColumnArray *>(argument_column.get());
-        sources.emplace_back(createArraySource(*argument_column_array));
+        auto argument_column = block.getByPosition(argument).column.get();
+        size_t column_size = argument_column->size();
+        bool is_const = false;
+
+        if (auto argument_column_const = checkAndGetColumn<ColumnConst>(argument_column))
+        {
+            is_const = true;
+            argument_column = &argument_column_const->getDataColumn();
+        }
+
+        if (auto argument_column_array = checkAndGetColumn<ColumnArray>(argument_column))
+            sources.emplace_back(createArraySource(*argument_column_array, is_const, column_size));
+        else
+            throw Exception{"Arguments for function " + getName() + " must be arrays.", ErrorCodes::LOGICAL_ERROR};
     }
 
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
     concat(sources, *sink);
 
-    auto array = typeid_cast<ColumnArray *>(result_column.get());
+    auto array = checkAndGetColumn<ColumnArray>(result_column.get());
     if (array)
     {
         auto & offsets = array->getOffsets();

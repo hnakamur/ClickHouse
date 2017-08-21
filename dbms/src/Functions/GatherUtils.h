@@ -61,6 +61,9 @@ struct IArraySource
 
     virtual size_t getSizeForReserve() const = 0;
     virtual const typename ColumnArray::Offsets_t & getOffsets() const = 0;
+    virtual size_t getColumnSize() const = 0;
+    virtual bool isConst() const { return false; }
+    virtual bool isNullable() const { return false; }
 };
 struct IArraySink
 {
@@ -112,6 +115,11 @@ struct NumericArraySource : public IArraySource
         return elements.size();
     }
 
+    size_t getColumnSize() const override
+    {
+        return offsets.size();
+    }
+
     Slice getWhole() const
     {
         return {&elements[prev_offset], offsets[row_num] - prev_offset};
@@ -152,7 +160,7 @@ struct NumericArraySource : public IArraySource
 
 
 template <typename Base>
-struct ConstSource
+struct ConstSource : public Base
 {
     using Slice = typename Base::Slice;
     using Column = ColumnConst;
@@ -164,6 +172,16 @@ struct ConstSource
 
     ConstSource(const ColumnConst & col)
         : total_rows(col.size()), base(static_cast<const typename Base::Column &>(col.getDataColumn()))
+    {
+    }
+
+    template <>
+    ConstSource(const typename Base::Column & col, size_t total_rows) : Base(col), total_rows(total_rows)
+    {
+    }
+
+    template <>
+    ConstSource(const typename Base::Column & col, const ColumnUInt8 & null_map, size_t total_rows) : Base(col, null_map), total_rows(total_rows)
     {
     }
 
@@ -185,6 +203,16 @@ struct ConstSource
     size_t getSizeForReserve() const
     {
         return total_rows * base.getSizeForReserve();
+    }
+
+    size_t getColumnSize() const // overrides for IArraySource
+    {
+        return total_rows;
+    }
+
+    bool isConst() const // overrides for IArraySource
+    {
+        return true;
     }
 
     Slice getWhole() const
@@ -570,6 +598,11 @@ struct GenericArraySource : public IArraySource
         return elements.size();
     }
 
+    size_t getColumnSize() const override
+    {
+        return elements.size();
+    }
+
     Slice getWhole() const
     {
         return {&elements, prev_offset, offsets[row_num] - prev_offset};
@@ -716,6 +749,11 @@ struct NullableArraySource : public ArraySource
             slice.null_map = &null_map[offsets[row_num] - offset];
         return slice;
     }
+
+    bool isNullable() const override
+    {
+        return true;
+    }
 };
 
 template <typename ArraySink>
@@ -741,42 +779,54 @@ struct ArraySourceCreator;
 template <typename Type, typename ... Types>
 struct ArraySourceCreator<Type, Types ...>
 {
-    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
+    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map, bool is_const, size_t total_rows)
     {
         std::cerr << "Numeric " << typeid(Type).name() << std::endl;
         if (typeid_cast<const ColumnVector<Type> *>(&col.getData()))
         {
             std::cerr << "Created" << typeid(NumericArraySource<Type>).name() << std::endl;
             if (null_map)
+            {
+                if (is_const)
+                    return std::make_unique<ConstSource<NullableArraySource<NumericArraySource<Type>>>>(col, *null_map, total_rows);
                 return std::make_unique<NullableArraySource<NumericArraySource<Type>>>(col, *null_map);
+            }
+            if (is_const)
+                return std::make_unique<ConstSource<NumericArraySource<Type>>>(col, total_rows);
             return std::make_unique<NumericArraySource<Type>>(col);
         }
 
-        return ArraySourceCreator<Types...>::create(col, null_map);
+        return ArraySourceCreator<Types...>::create(col, null_map, is_const, total_rows);
     }
 };
 
 template <>
 struct ArraySourceCreator<>
 {
-    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map)
+    static std::unique_ptr<IArraySource> create(const ColumnArray & col, const ColumnUInt8 * null_map, bool is_const, size_t total_rows)
     {
         std::cerr << "Generic " << typeid(GenericArraySource).name() << std::endl;
         if (null_map)
+        {
+            if (is_const)
+                return std::make_unique<ConstSource<NullableArraySource<GenericArraySource>>>(col, *null_map, total_rows);
             return std::make_unique<NullableArraySource<GenericArraySource>>(col, *null_map);
+        }
+        if (is_const)
+            return std::make_unique<ConstSource<GenericArraySource>>(col, total_rows);
         return std::make_unique<GenericArraySource>(col);
     }
 };
 
-inline std::unique_ptr<IArraySource> createArraySource(const ColumnArray & col)
+inline std::unique_ptr<IArraySource> createArraySource(const ColumnArray & col, bool is_const, size_t total_rows)
 {
     using Creator = typename ApplyTypeListForClass<ArraySourceCreator, TypeListNumber>::Type;
     if (auto column_nullable = typeid_cast<const ColumnNullable *>(&col.getData()))
     {
         ColumnArray column(column_nullable->getNestedColumn(), col.getOffsetsColumn());
-        return Creator::create(column, &column_nullable->getNullMapConcreteColumn());
+        return Creator::create(column, &column_nullable->getNullMapConcreteColumn(), is_const, total_rows);
     }
-    return Creator::create(col, nullptr);
+    return Creator::create(col, nullptr, is_const, total_rows);
 }
 
 
@@ -1030,6 +1080,10 @@ struct ArrayAppend<Sink, Type, Types ...>
             append<NumericArraySource<Type>, Sink>(*array, sink);
         else if(auto nullable_array = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&source))
             append<NullableArraySource<NumericArraySource<Type>>, Sink>(*nullable_array, sink);
+        else if (auto const_array = typeid_cast<ConstSource<NumericArraySource<Type>> *>(&source))
+            append<ConstSource<NumericArraySource<Type>>, Sink>(*const_array, sink);
+        else if(auto const_nullable_array = typeid_cast<ConstSource<NullableArraySource<NumericArraySource<Type>>> *>(&source))
+            append<ConstSource<NullableArraySource<NumericArraySource<Type>>>, Sink>(*const_nullable_array, sink);
         else
             ArrayAppend<Sink, Types ...>::appendImpl(source, sink);
     }
@@ -1044,6 +1098,10 @@ struct ArrayAppend<Sink>
             append<GenericArraySource, Sink>(*array, sink);
         else if(auto nullable_array = typeid_cast<NullableArraySource<GenericArraySource> *>(&source))
             append<NullableArraySource<GenericArraySource>, Sink>(*nullable_array, sink);
+        else if (auto const_array = typeid_cast<ConstSource<GenericArraySource> *>(&source))
+            append<ConstSource<GenericArraySource>, Sink>(*const_array, sink);
+        else if(auto const_nullable_array = typeid_cast<ConstSource<NullableArraySource<GenericArraySource>> *>(&source))
+            append<ConstSource<NullableArraySource<GenericArraySource>>, Sink>(*const_nullable_array, sink);
         else
             throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
     }
@@ -1099,43 +1157,66 @@ static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySour
 {
     std::vector<GenericArraySource *> generic_sources;
     std::vector<bool> is_nullable;
+    std::vector<bool> is_const;
 
     generic_sources.reserve(sources.size());
-    is_nullable.assign(sources.size(), true);
+    is_nullable.assign(sources.size(), false);
+    is_const.assign(sources.size(), false);
 
     for (auto i : ext::range(0, sources.size()))
     {
-        const auto & source = sources[i];
-        auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(source.get());
-        if (nullable_generic_source)
-            generic_sources.push_back(static_cast<GenericArraySource *>(nullable_generic_source));
-        else
+        const auto &source = sources[i];
+        if (auto generic_source = typeid_cast<GenericArraySource *>(source.get()))
+            generic_sources.push_back(static_cast<GenericArraySource *>(generic_source));
+        else if (auto const_generic_source = typeid_cast<ConstSource<GenericArraySource> *>(source.get()))
         {
-            is_nullable[i] = false;
-            auto generic_source = typeid_cast<GenericArraySource *>(source.get());
-            if (generic_source)
-                generic_sources.push_back(generic_source);
-            else
-                throw Exception(std::string("GenericArraySource expected for GenericArraySink, got: ") + typeid(source).name(),
-                                ErrorCodes::LOGICAL_ERROR);
+            generic_sources.push_back(static_cast<GenericArraySource *>(const_generic_source));
+            is_const[i] = true;
         }
+        else if (auto nullable_source = typeid_cast<NullableArraySource<GenericArraySource> *>(source.get()))
+        {
+            generic_sources.push_back(static_cast<GenericArraySource *>(nullable_source));
+            is_nullable[i] = true;
+        }
+        else if (auto const_nullable_source = typeid_cast<ConstSource<NullableArraySource<GenericArraySource>> *>(source.get()))
+        {
+            generic_sources.push_back(static_cast<GenericArraySource *>(const_nullable_source));
+            is_nullable[i] = is_const[i] = true;
+        }
+        else
+            throw Exception(std::string("GenericArraySource expected for GenericArraySink, got: ") + typeid(source).name(),
+                            ErrorCodes::LOGICAL_ERROR);
     }
+
+    template <typename SourceType, typename SinkType>
+    struct Impl
+    {
+        static void concat(GenericArraySource * generic_source, SinkType & sink)
+        {
+            auto source = static_cast<SourceType *>(generic_source);
+            writeSlice(source->getWhole(), sink);
+            source->next();
+        }
+    };
 
     while (!sink.isEnd())
     {
         for (auto i : ext::range(0, sources.size()))
         {
             auto source = generic_sources[i];
-            if (is_nullable[i])
+            if (is_const[i])
             {
-                auto nullable_source = static_cast<NullableArraySource<GenericArraySource> *>(source);
-                writeSlice(nullable_source->getWhole(), sink);
-                nullable_source->next();
+                if (is_nullable[i])
+                    Impl<ConstSource<NullableArraySource<GenericArraySource>>, Sink>::concat(source, sink);
+                else
+                    Impl<ConstSource<GenericArraySource>, Sink>::concat(source, sink);
             }
             else
             {
-                writeSlice(source->getWhole(), sink);
-                source->next();
+                if (is_nullable[i])
+                    Impl<NullableArraySource<GenericArraySource>, Sink>::concat(source, sink);
+                else
+                    Impl<GenericArraySource, Sink>::concat(source, sink);
             }
         }
         sink.next();
@@ -1156,8 +1237,8 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
 
         if (is_first)
         {
-            sink.offsets.resize(offsets.size());
-            memset(&sink.offsets[0], 0, offsets.size() * sizeof(offsets[0]));
+            sink.offsets.resize(source->getColumnSize());
+            memset(&sink.offsets[0], 0, sink.offsets.size() * sizeof(offsets[0]));
             is_first = false;
         }
         std::cerr << "Offsets:";
@@ -1167,8 +1248,16 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
         }
         std::cerr << std::endl;
 
-        for (size_t i : ext::range(1, offsets.size()))
-            sink.offsets[i] += offsets[i - 1] - (i > 1 ? offsets[i - 2] : 0);
+        if (source->isConst())
+        {
+            for (size_t i : ext::range(1, offsets.size()))
+                sink.offsets[i] += offsets[0];
+        }
+        else
+        {
+            for (size_t i : ext::range(1, offsets.size()))
+                sink.offsets[i] += offsets[i - 1] - (i > 1 ? offsets[i - 2] : 0);
+        }
     }
 
     std::cerr << "Sink offsets:";
