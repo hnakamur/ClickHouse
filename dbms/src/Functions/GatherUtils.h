@@ -1023,26 +1023,26 @@ struct ArrayAppend;
 template <typename Sink, typename Type, typename ... Types>
 struct ArrayAppend<Sink, Type, Types ...>
 {
-    static void append(const IArraySource & source, Sink & sink)
+    static void appendImpl(const IArraySource & source, Sink & sink)
     {
         if (auto array = typeid_cast<const NumericArraySource<Type> *>(&source))
-            append(*array, sink);
+            append<NumericArraySource<Type>, Sink>(*array, sink);
         else if(auto nullable_array = typeid_cast<const NullableArraySource<NumericArraySource<Type>> *>(&source))
-            append(*nullable_array, sink);
+            append<NullableArraySource<NumericArraySource<Type>>, Sink>(*nullable_array, sink);
         else
-            ArrayAppend<Sink, Types ...>::append(source, sink);
+            ArrayAppend<Sink, Types ...>::appendImpl(source, sink);
     }
 };
 
 template <typename Sink>
 struct ArrayAppend<Sink>
 {
-    static void append(const IArraySource & source, Sink & sink)
+    static void appendImpl(const IArraySource & source, Sink & sink)
     {
         if (auto array = typeid_cast<const GenericArraySource *>(&source))
-            append(*array, sink);
+            append<GenericArraySource, Sink>(*array, sink);
         else if(auto nullable_array = typeid_cast<const NullableArraySource<GenericArraySource> *>(&source))
-            append(*nullable_array, sink);
+            append<NullableArraySource<GenericArraySource>, Sink>(*nullable_array, sink);
         else
             throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
     }
@@ -1053,7 +1053,7 @@ static void append(const IArraySource & source, Sink & sink)
 {
     using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
     using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, List>::Type;
-    AppendImpl::append(source, sink);
+    AppendImpl::appendImpl(source, sink);
 }
 
 
@@ -1109,7 +1109,7 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
 
     for (const auto & source : sources)
     {
-        append(*source, sink);
+        append<Sink>(*source, sink);
     }
 }
 
