@@ -1095,6 +1095,54 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
 }
 
 template <typename Sink>
+static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
+{
+    std::vector<GenericArraySource *> generic_sources;
+    std::vector<bool> is_nullable;
+
+    generic_sources.reserve(sources.size());
+    is_nullable.assign(sources.size(), true);
+
+    for (auto i : ext::range(0, sources.size()))
+    {
+        const auto & source = sources[i];
+        auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(source.get());
+        if (nullable_generic_source)
+            generic_sources.push_back(static_cast<GenericArraySource *>(nullable_generic_source));
+        else
+        {
+            is_nullable[i] = false;
+            auto generic_source = typeid_cast<GenericArraySource *>(source.get());
+            if (generic_source)
+                generic_sources.push_back(generic_source);
+            else
+                throw Exception(std::string("GenericArraySource expected for GenericArraySink, got : ") + typeid(source).name(),
+                                ErrorCodes::LOGICAL_ERROR);
+        }
+    }
+
+    while (!sink.isEnd())
+    {
+        for (auto i : ext::range(0, sources.size()))
+        {
+            auto source = generic_sources[i];
+            if (is_nullable[i])
+            {
+                auto nullable_source = static_cast<NullableArraySource<GenericArraySource> *>(source);
+                writeSlice(nullable_source->getWhole(), sink);
+                nullable_source->next();
+            }
+            else
+            {
+                writeSlice(source->getWhole(), sink);
+                source->next();
+            }
+        }
+        sink.next();
+    }
+}
+
+template <typename Sink>
 void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
 {
     size_t elements_to_reserve = 0;
@@ -1144,9 +1192,9 @@ struct ArrayConcat<>
     static void concatImpl(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
-            concat<NullableArraySink<GenericArraySink>>(sources, *nullable_generic_sink);
+            concatGeneric<NullableArraySink<GenericArraySink>>(sources, *nullable_generic_sink);
         else if (auto generic_sink = typeid_cast<GenericArraySink *>(&sink))
-            concat<GenericArraySink>(sources, *generic_sink);
+            concatGeneric<GenericArraySink>(sources, *generic_sink);
         else
             throw Exception(std::string("Unknown ArraySink type: ") + typeid(sink).name(), ErrorCodes::LOGICAL_ERROR);
     }
