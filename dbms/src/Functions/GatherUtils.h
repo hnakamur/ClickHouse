@@ -1146,13 +1146,19 @@ template <typename Sink>
 void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
 {
     size_t elements_to_reserve = 0;
+    bool is_first = true;
     /// Prepare offsets column. Offsets should point to starts of result arrays.
+
     for (const auto & source : sources)
     {
         elements_to_reserve += source->getSizeForReserve();
         const auto & offsets = source->getOffsets();
-        sink.offsets.resize_fill(offsets.size());
 
+        if (is_first)
+        {
+            sink.offsets.resize(offsets.size());
+            memset(&sink.offsets[0], 0, offsets.size() * sizeof(offsets[0]));
+        }
         std::cerr << "Offsets:";
         for (size_t i : ext::range(1, offsets.size()))
         {
