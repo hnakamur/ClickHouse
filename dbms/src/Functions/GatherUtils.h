@@ -14,6 +14,7 @@
 
 #include <Common/typeid_cast.h>
 #include <Common/memcpySmall.h>
+#include <ext/range.h>
 #include <Core/TypeListNumber.h>
 
 #include <DataTypes/DataTypeTraits.h>
