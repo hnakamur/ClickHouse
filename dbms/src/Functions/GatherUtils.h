@@ -1104,8 +1104,10 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
         const auto & offsets = source->getOffsets();
         sink.offsets.resize_fill(offsets.size());
         for (size_t i : ext::range(0, offsets.size()))
-            sink.offsets[i] += offsets[i];
+            sink.offsets[i] += offsets[i] - (i ? offsets[i - 1] : 0);
     }
+    for (size_t i : ext::range(1, sink.offsets.size()))
+        sink.offsets[i] += sink.offsets[i - 1];
 
     sink.reserve(elements_to_reserve);
 
