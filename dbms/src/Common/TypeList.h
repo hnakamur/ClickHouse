@@ -21,10 +21,10 @@ struct TypeList<>
 /// Append Type to TypeList
 /// Usage:
 ///     using TypeListWithType = AppendToTypeList<Type, ConcreteTypeList>::Type;
-template <typename Type, typename List, typename ... Types>
+template <typename TypeToAppend, typename List, typename ... Types>
 struct AppendToTypeList
 {
-    using Type = typename AppendToTypeList<Type, typename List::Tail, typename List::Head, Types ...>;
+    using Type = typename AppendToTypeList<TypeToAppend, typename List::Tail, typename List::Head, Types ...>;
 };
 
 template <typename Type, typename ... Types>
