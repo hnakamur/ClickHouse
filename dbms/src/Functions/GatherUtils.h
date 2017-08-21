@@ -1119,15 +1119,15 @@ struct ArrayConcat;
 template <typename Type, typename ... Types>
 struct ArrayConcat<Type, Types ...>
 {
-    static void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
+    static void concatImpl(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         std::cerr << "ArrayConcat " << typeid(Type).name() << typeid(sink).name() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
-            concat(sources, *nullable_numeric_sink);
+            concat<NullableArraySink<NumericArraySink<Type>>(sources, *nullable_numeric_sink);
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
-            concat(sources, *numeric_sink);
+            concat<NumericArraySink<Type>>(sources, *numeric_sink);
         else
-            ArrayConcat<Types ...>::concat(sources, sink);
+            ArrayConcat<Types ...>::concatImpl(sources, sink);
     }
 };
 
@@ -1137,9 +1137,9 @@ struct ArrayConcat<>
     static void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
-            concat(sources, *nullable_generic_sink);
+            concat<NullableArraySink<GenericArraySink>>(sources, *nullable_generic_sink);
         else if (auto generic_sink = typeid_cast<GenericArraySink *>(&sink))
-            concat(sources, *generic_sink);
+            concat<GenericArraySink>(sources, *generic_sink);
         else
             throw Exception(std::string("Unknown ArraySink type: ") + typeid(sink).name(), ErrorCodes::LOGICAL_ERROR);
     }
@@ -1148,7 +1148,7 @@ struct ArrayConcat<>
 inline void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
     using ConcatImpl = ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
-    return ConcatImpl::concat(sources, sink);
+    return ConcatImpl::concatImpl(sources, sink);
 }
 
 template <typename Source, typename Sink>
