@@ -1025,9 +1025,9 @@ struct ArrayAppend<Sink, Type, Types ...>
 {
     static void appendImpl(IArraySource & source, Sink & sink)
     {
-        if (auto array = typeid_cast<const NumericArraySource<Type> *>(&source))
+        if (auto array = typeid_cast<NumericArraySource<Type> *>(&source))
             append<NumericArraySource<Type>, Sink>(*array, sink);
-        else if(auto nullable_array = typeid_cast<const NullableArraySource<NumericArraySource<Type>> *>(&source))
+        else if(auto nullable_array = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&source))
             append<NullableArraySource<NumericArraySource<Type>>, Sink>(*nullable_array, sink);
         else
             ArrayAppend<Sink, Types ...>::appendImpl(source, sink);
@@ -1039,9 +1039,9 @@ struct ArrayAppend<Sink>
 {
     static void appendImpl(IArraySource & source, Sink & sink)
     {
-        if (auto array = typeid_cast<const GenericArraySource *>(&source))
+        if (auto array = typeid_cast<GenericArraySource *>(&source))
             append<GenericArraySource, Sink>(*array, sink);
-        else if(auto nullable_array = typeid_cast<const NullableArraySource<GenericArraySource> *>(&source))
+        else if(auto nullable_array = typeid_cast<NullableArraySource<GenericArraySource> *>(&source))
             append<NullableArraySource<GenericArraySource>, Sink>(*nullable_array, sink);
         else
             throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
