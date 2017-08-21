@@ -24,13 +24,13 @@ struct TypeList<>
 template <typename TypeToAppend, typename List, typename ... Types>
 struct AppendToTypeList
 {
-    using Type = typename AppendToTypeList<TypeToAppend, typename List::Tail, typename List::Head, Types ...>;
+    using Type = typename AppendToTypeList<TypeToAppend, typename List::Tail, typename List::Head, Types ...>::Type;
 };
 
-template <typename Type, typename ... Types>
-struct AppendToTypeList<Type, TypeList<>, Types ...>
+template <typename TypeToAppend, typename ... Types>
+struct AppendToTypeList<TypeToAppend, TypeList<>, Types ...>
 {
-    using Type = TypeList<Type, Types ...>;
+    using Type = TypeList<TypeToAppend, Types ...>;
 };
 
 /// Apply TypeList as variadic template argument of Class.
