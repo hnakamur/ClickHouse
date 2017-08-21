@@ -913,7 +913,7 @@ void writeSlice(const NumericArraySlice<T> & slice, NumericArraySink<T> & sink)
 {
     if (sink.elements.size() < sink.current_offset + slice.size)
         sink.elements.resize(sink.current_offset + slice.size);
-    memcpySmallAllowReadWriteOverflow15(&sink.elements[sink.current_offset], slice.data, slice.size * sizeof(T));
+    memcpy(&sink.elements[sink.current_offset], slice.data, slice.size * sizeof(T));
     sink.current_offset += slice.size;
 }
 
@@ -989,7 +989,7 @@ inline ALWAYS_INLINE void writeSlice(const NullableArraySlice<ArraySlice> & slic
 {
     if (sink.null_map.size() < sink.current_offset + slice.size)
         sink.null_map.resize(sink.current_offset + slice.size);
-    memcpySmallAllowReadWriteOverflow15(&sink.null_map[sink.current_offset], slice.null_map, slice.size * sizeof(UInt8));
+    memcpy(&sink.null_map[sink.current_offset], slice.null_map, slice.size * sizeof(UInt8));
     writeSlice(static_cast<const ArraySlice &>(slice), static_cast<ArraySink &>(sink));
 }
 
