@@ -2985,6 +2985,16 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
     concat(sources, *sink);
 
+    auto array = typeid_cast<ColumnArray *>(result_column.get());
+    if (array)
+    {
+        auto & offsets = array->getOffsets();
+        std::cerr << offsets.size()  << " " << array->size()<< std::endl;
+        for (auto & val : offsets)
+            std::cerr << val << ' ';
+        std::cerr << std::endl;
+    }
+
     std::cerr << block.dumpStructure() << std::endl;
 }
 
