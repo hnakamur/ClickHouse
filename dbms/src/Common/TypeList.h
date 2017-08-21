@@ -24,7 +24,7 @@ struct TypeList<>
 template <typename TypeToAppend, typename List, typename ... Types>
 struct AppendToTypeList
 {
-    using Type = typename AppendToTypeList<TypeToAppend, typename List::Tail, typename List::Head, Types ...>::Type;
+    using Type = typename AppendToTypeList<TypeToAppend, typename List::Tail, Types ..., typename List::Head>::Type;
 };
 
 template <typename TypeToAppend, typename ... Types>
@@ -39,7 +39,7 @@ struct AppendToTypeList<TypeToAppend, TypeList<>, Types ...>
 template <template <typename ...> typename Class, typename List, typename ... Types>
 struct ApplyTypeListForClass
 {
-    using Type = typename ApplyTypeListForClass<Class, typename List::Tail, typename List::Head, Types ...>::Type;
+    using Type = typename ApplyTypeListForClass<Class, typename List::Tail, Types ..., typename List::Head>::Type;
 };
 
 template <template <typename ...> typename Class, typename ... Types>
