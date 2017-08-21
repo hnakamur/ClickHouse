@@ -1006,7 +1006,7 @@ inline ALWAYS_INLINE void writeSlice(const ArraySlice & slice, NullableArraySink
 /// Algorithms
 
 template <typename Source, typename Sink>
-static void append (const Source & source, Sink & sink)
+static void append (Source & source, Sink & sink)
 {
     sink.row_num = 0;
     while (!source.isEnd())
@@ -1023,7 +1023,7 @@ struct ArrayAppend;
 template <typename Sink, typename Type, typename ... Types>
 struct ArrayAppend<Sink, Type, Types ...>
 {
-    static void appendImpl(const IArraySource & source, Sink & sink)
+    static void appendImpl(IArraySource & source, Sink & sink)
     {
         if (auto array = typeid_cast<const NumericArraySource<Type> *>(&source))
             append<NumericArraySource<Type>, Sink>(*array, sink);
@@ -1037,7 +1037,7 @@ struct ArrayAppend<Sink, Type, Types ...>
 template <typename Sink>
 struct ArrayAppend<Sink>
 {
-    static void appendImpl(const IArraySource & source, Sink & sink)
+    static void appendImpl(IArraySource & source, Sink & sink)
     {
         if (auto array = typeid_cast<const GenericArraySource *>(&source))
             append<GenericArraySource, Sink>(*array, sink);
@@ -1049,7 +1049,7 @@ struct ArrayAppend<Sink>
 };
 
 template <typename Sink>
-static void append(const IArraySource & source, Sink & sink)
+static void append(IArraySource & source, Sink & sink)
 {
     using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
     using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, List>::Type;
@@ -1119,7 +1119,7 @@ struct ArrayConcat;
 template <typename Type, typename ... Types>
 struct ArrayConcat<Type, Types ...>
 {
-    static void concatImpl(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
+    static void concatImpl(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         std::cerr << "ArrayConcat " << typeid(Type).name() << typeid(sink).name() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
@@ -1134,7 +1134,7 @@ struct ArrayConcat<Type, Types ...>
 template <>
 struct ArrayConcat<>
 {
-    static void concatImpl(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
+    static void concatImpl(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
             concat<NullableArraySink<GenericArraySink>>(sources, *nullable_generic_sink);
@@ -1145,7 +1145,7 @@ struct ArrayConcat<>
     }
 };
 
-inline void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
+inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
     using ConcatImpl = ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
     return ConcatImpl::concatImpl(sources, sink);
