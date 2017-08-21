@@ -1158,6 +1158,7 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
         {
             sink.offsets.resize(offsets.size());
             memset(&sink.offsets[0], 0, offsets.size() * sizeof(offsets[0]));
+            is_first = false;
         }
         std::cerr << "Offsets:";
         for (size_t i : ext::range(1, offsets.size()))
