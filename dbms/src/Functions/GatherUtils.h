@@ -1013,7 +1013,7 @@ static void append (const Source & source, Sink & sink)
     {
         writeSlice(source.getWhole(), sink);
         ++sink.row_num;
-        source.next;
+        source.next();
     }
 }
 
