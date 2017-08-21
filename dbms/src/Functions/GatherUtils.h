@@ -56,6 +56,8 @@ struct NumericArraySlice
 
 struct IArraySource
 {
+    virtual ~IArraySource() {}
+
     virtual size_t getSizeForReserve() const = 0;
     virtual const typename ColumnArray::Offsets_t & getOffsets() const = 0;
 };
