@@ -170,18 +170,18 @@ struct ConstSource : public Base
 
     Base base;
 
-    ConstSource(const ColumnConst & col)
+    explicit ConstSource(const ColumnConst & col)
         : total_rows(col.size()), base(static_cast<const typename Base::Column &>(col.getDataColumn()))
     {
     }
 
-    template <>
-    ConstSource(const typename Base::Column & col, size_t total_rows) : Base(col), total_rows(total_rows)
+    template <typename ColumnType>
+    ConstSource(const ColumnType & col, size_t total_rows) : Base(col), total_rows(total_rows)
     {
     }
 
-    template <>
-    ConstSource(const typename Base::Column & col, const ColumnUInt8 & null_map, size_t total_rows) : Base(col, null_map), total_rows(total_rows)
+    template <typename ColumnType>
+    ConstSource(const ColumnType & col, const ColumnUInt8 & null_map, size_t total_rows) : Base(col, null_map), total_rows(total_rows)
     {
     }
 
