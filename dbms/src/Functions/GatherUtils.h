@@ -1116,7 +1116,7 @@ static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySour
             if (generic_source)
                 generic_sources.push_back(generic_source);
             else
-                throw Exception(std::string("GenericArraySource expected for GenericArraySink, got : ") + typeid(source).name(),
+                throw Exception(std::string("GenericArraySource expected for GenericArraySink, got: ") + typeid(source).name(),
                                 ErrorCodes::LOGICAL_ERROR);
         }
     }

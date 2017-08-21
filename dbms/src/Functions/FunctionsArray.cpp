@@ -2921,7 +2921,7 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
         if (!hasArrayIdenticalTypes(nested_types))
             throw Exception{"Arguments for function " + getName() + " must have same type or behave as number.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
 
-        return std::make_shared<DataTypeArray>(getArrayElementType(arguments));
+        return std::make_shared<DataTypeArray>(getArrayElementType(nested_types));
     }
 
     /*
