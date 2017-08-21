@@ -2895,25 +2895,36 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
     if (arguments.empty())
         throw Exception{"Function array requires at least one argument.", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH};
 
-    if (foundNumericType(arguments))
+    DataTypes nested_types;
+    nested_types.reserve(arguments.size());
+    for (size_t i : ext::range(0, arguments.size()))
+    {
+        const auto & argument = arguments[i];
+        auto data_type_array = checkAndGetDataType<DataTypeArray>(argument.get());
+        if (!data_type_array)
+            throw Exception("Argument " + toString(i) + " for function " + getName() + " must be an array but it has type "
+                            + argument->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        nested_types.push_back(data_type_array->getNestedType());
+    }
+
+    if (foundNumericType(nested_types))
     {
         /// Since we have found at least one numeric argument, we infer that all
         /// the arguments are numeric up to nullity. Let's determine the least
         /// common type.
-        auto enriched_result_type = Conditional::getArrayType(arguments);
+        auto enriched_result_type = Conditional::getArrayType(nested_types);
         return std::make_shared<DataTypeArray>(enriched_result_type);
     }
     else
     {
         /// Otherwise all the arguments must have the same type up to nullability or nullity.
-        if (!hasArrayIdenticalTypes(arguments))
-            throw Exception{"Arguments for function array must have same type or behave as number.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
+        if (!hasArrayIdenticalTypes(nested_types))
+            throw Exception{"Arguments for function " + getName() + " must have same type or behave as number.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
 
         return std::make_shared<DataTypeArray>(getArrayElementType(arguments));
     }
 
-
-
+    /*
     bool has_nullable = false;
     DataTypePtr common_type;
 
@@ -2944,6 +2955,7 @@ DataTypePtr FunctionArrayConcat::getReturnTypeImpl(const DataTypes & arguments) 
         common_type = std::make_shared<DataTypeNullable>(common_type);
 
     return std::make_shared<DataTypeArray>(common_type);
+    */
 }
 
 void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
@@ -2971,7 +2983,7 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     }
 
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
-    arrayConcat(*sources[0], *sources[1], *sink);
+    concat(sources, *sink);
 
     std::cerr << block.dumpStructure() << std::endl;
 }

@@ -56,7 +56,8 @@ struct NumericArraySlice
 
 struct IArraySource
 {
-    virtual ~IArraySource() {}
+    virtual size_t getSizeForReserve() const = 0;
+    virtual const typename ColumnArray::Offsets_t & getOffsets() const = 0;
 };
 struct IArraySink
 {
@@ -97,8 +98,13 @@ struct NumericArraySource : public IArraySource
         return row_num;
     }
 
+    const typename ColumnArray::Offsets_t & getOffsets() const
+    {
+        return offsets;
+    }
+
     /// Get size for corresponding call or Sink::reserve to reserve memory for elements.
-    size_t getSizeForReserve() const
+    size_t getSizeForReserve() const override
     {
         return elements.size();
     }
@@ -551,7 +557,12 @@ struct GenericArraySource : public IArraySource
         return row_num;
     }
 
-    size_t getSizeForReserve() const
+    const typename ColumnArray::Offsets_t & getOffsets() const
+    {
+        return offsets;
+    }
+
+    size_t getSizeForReserve() const override
     {
         return elements.size();
     }
@@ -897,7 +908,8 @@ struct NumericSink
 template <typename T>
 void writeSlice(const NumericArraySlice<T> & slice, NumericArraySink<T> & sink)
 {
-    sink.elements.resize(sink.current_offset + slice.size);
+    if (sink.elements.size() < sink.current_offset + slice.size)
+        sink.elements.resize(sink.current_offset + slice.size);
     memcpySmallAllowReadWriteOverflow15(&sink.elements[sink.current_offset], slice.data, slice.size * sizeof(T));
     sink.current_offset += slice.size;
 }
@@ -905,7 +917,8 @@ void writeSlice(const NumericArraySlice<T> & slice, NumericArraySink<T> & sink)
 template <typename T, typename U>
 void writeSlice(const NumericArraySlice<T> & slice, NumericArraySink<U> & sink)
 {
-    sink.elements.resize(sink.current_offset + slice.size);
+    if (sink.elements.size() < sink.current_offset + slice.size)
+        sink.elements.resize(sink.current_offset + slice.size);
     for (size_t i = 0; i < slice.size; ++i)
     {
         sink.elements[sink.current_offset] = slice.data[i];
@@ -915,7 +928,8 @@ void writeSlice(const NumericArraySlice<T> & slice, NumericArraySink<U> & sink)
 
 inline ALWAYS_INLINE void writeSlice(const StringSource::Slice & slice, StringSink & sink)
 {
-    sink.elements.resize(sink.current_offset + slice.size);
+    if (sink.elements.size() < sink.current_offset + slice.size)
+        sink.elements.resize(sink.current_offset + slice.size);
     memcpySmallAllowReadWriteOverflow15(&sink.elements[sink.current_offset], slice.data, slice.size);
     sink.current_offset += slice.size;
 }
@@ -944,7 +958,8 @@ inline ALWAYS_INLINE void writeSlice(const GenericArraySlice & slice, GenericArr
 template <typename T>
 inline ALWAYS_INLINE void writeSlice(const GenericArraySlice & slice, NumericArraySink<T> & sink)
 {
-    sink.elements.resize(sink.current_offset + slice.size);
+    if (sink.elements.size() < sink.current_offset + slice.size)
+        sink.elements.resize(sink.current_offset + slice.size);
     for (size_t i = 0; i < slice.size; ++i)
     {
         Field field;
@@ -969,7 +984,8 @@ inline ALWAYS_INLINE void writeSlice(const NumericArraySlice<T> & slice, Generic
 template <typename ArraySlice, typename ArraySink>
 inline ALWAYS_INLINE void writeSlice(const NullableArraySlice<ArraySlice> & slice, NullableArraySink<ArraySink> & sink)
 {
-    sink.null_map.resize(sink.current_offset + slice.size);
+    if (sink.null_map.size() < sink.current_offset + slice.size)
+        sink.null_map.resize(sink.current_offset + slice.size);
     memcpySmallAllowReadWriteOverflow15(&sink.null_map[sink.current_offset], slice.null_map, slice.size * sizeof(UInt8));
     writeSlice(static_cast<const ArraySlice &>(slice), static_cast<ArraySink &>(sink));
 }
@@ -978,12 +994,64 @@ inline ALWAYS_INLINE void writeSlice(const NullableArraySlice<ArraySlice> & slic
 template <typename ArraySlice, typename ArraySink>
 inline ALWAYS_INLINE void writeSlice(const ArraySlice & slice, NullableArraySink<ArraySink> & sink)
 {
-    sink.null_map.resize(sink.current_offset + slice.size);
+    if (sink.null_map.size() < sink.current_offset + slice.size)
+        sink.null_map.resize(sink.current_offset + slice.size);
     memset(&sink.null_map[sink.current_offset], 0, slice.size * sizeof(UInt8));
     writeSlice(slice, static_cast<ArraySink &>(sink));
 }
 
 /// Algorithms
+
+template <typename Source, typename Sink>
+static void append (const Source & source, Sink & sink)
+{
+    sink.row_num = 0;
+    while (!source.isEnd())
+    {
+        writeSlice(source.getWhole(), sink);
+        ++sink.row_num;
+        source.next;
+    }
+}
+
+template <typename ... Types, typename Sink>
+struct ArrayAppend;
+
+template <typename Type, typename ... Types, typename Sink>
+struct ArrayAppend<Type, Types ..., Sink>
+{
+    static void append(const IArraySource & source, Sink & sink)
+    {
+        if (auto array = typeid_cast<const NumericArraySource<Type> *>(&source))
+            append(*array, sink);
+        else if(auto nullable_array = typeid_cast<const NullableArraySource<NumericArraySource<Type>> *>(&source))
+            append(*nullable_array, sink);
+        else
+            ArrayAppend<Types ..., Sink>::append(source, sink);
+    }
+};
+
+template <typename Sink>
+struct ArrayAppend<Sink>
+{
+    static void append(const IArraySource & source, Sink & sink)
+    {
+        if (auto array = typeid_cast<const GenericArraySource *>(&source))
+            append(*array, sink);
+        else if(auto nullable_array = typeid_cast<const NullableArraySource<GenericArraySource> *>(&source))
+            append(*nullable_array, sink);
+        else
+            throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
+    }
+};
+
+template <typename Sink>
+static void append(const IArraySource & source, Sink & sink)
+{
+    using AppendImpl = ApplyTypeListForClass<TypeListNumber, ArrayAppend>::Type;
+    AppendImpl::append(source, sink);
+}
+
 
 template <typename SourceA, typename SourceB, typename Sink>
 void NO_INLINE concat(SourceA & src_a, SourceB & src_b, Sink & sink)
@@ -1021,93 +1089,62 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
     }
 }
 
+template <typename Sink>
+void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
+{
+    size_t elements_to_reserve = 0;
+    /// Prepare offsets column.
+    for (const auto & source : sources)
+    {
+        elements_to_reserve += source->getSizeForReserve();
+        const auto & offsets = source->getOffsets();
+        sink.offsets.resize_fill(offsets.size());
+        for (size_t i : ext::range(0, offsets.size()))
+            sink.offsets[i] += offsets[i];
+    }
+
+    for (const auto & source : sources)
+    {
+        append(*source, sink);
+    }
+}
 
 template <typename ... Types>
-struct ArrayConcatImpl;
+struct ArrayConcat;
 
 template <typename Type, typename ... Types>
-struct ArrayConcatImpl<Type, Types ...>
+struct ArrayConcat<Type, Types ...>
 {
-    template <typename SourceA, typename SourceB>
-    static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
+    static void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
-        std::cerr << "Imp1 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
+        std::cerr << "ArrayConcat " << typeid(Type).name() << typeid(sink).name() << std::endl;
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
-            concat(src_a, src_b, *nullable_numeric_sink);
+            concat(sources, *nullable_numeric_sink);
         else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
-            concat(src_a, src_b, *numeric_sink);
+            concat(sources, *numeric_sink);
         else
-            ArrayConcatImpl<Types ...>::template concatImpl<SourceA, SourceB>(src_a, src_b, sink);
-    }
-
-    template <typename SourceA>
-    static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
-    {
-        std::cerr << "Imp2 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
-        using Impl = typename ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
-        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_b))
-            Impl::concatImpl<SourceA, NullableArraySource<NumericArraySource<Type>>>(src_a, *nullable_numeric_source, sink);
-        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_b))
-            Impl::concatImpl<SourceA, NumericArraySource<Type>>(src_a, *numeric_source, sink);
-        else
-            ArrayConcatImpl<Types ...>::template concatImpl<SourceA>(src_a, src_b, sink);
-    }
-
-    static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
-    {
-        std::cerr << "Imp3 " << typeid(Type).name() << typeid(src_a).name() << std::endl;
-        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
-        if (auto nullable_numeric_source = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&src_a))
-            Impl::concatImpl<NullableArraySource<NumericArraySource<Type>>>(*nullable_numeric_source, src_b, sink);
-        else if (auto numeric_source = typeid_cast<NumericArraySource<Type> *>(&src_a))
-            Impl::concatImpl<NumericArraySource<Type>>(*numeric_source, src_b, sink);
-        else
-            ArrayConcatImpl<Types ...>::concatImpl(src_a, src_b, sink);
+            ArrayConcat<Types ...>::concat(sources, sink);
     }
 };
 
 template <>
-struct ArrayConcatImpl<>
+struct ArrayConcat<>
 {
-    template <typename SourceA, typename SourceB>
-    static void concatImpl(SourceA & src_a, SourceB & src_b, IArraySink & sink)
+    static void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
-            concat(src_a, src_b, *nullable_generic_sink);
+            concat(sources, *nullable_generic_sink);
         else if (auto generic_sink = typeid_cast<GenericArraySink *>(&sink))
-            concat(src_a, src_b, *generic_sink);
+            concat(sources, *generic_sink);
         else
-            throw Exception("Unknown ArraySink type", ErrorCodes::LOGICAL_ERROR);
-    }
-
-    template <typename SourceA>
-    static void concatImpl(SourceA & src_a, IArraySource & src_b, IArraySink & sink)
-    {
-        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
-        if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_b))
-            Impl::concatImpl<SourceA, NullableArraySource<GenericArraySource>>(src_a, *nullable_generic_source, sink);
-        else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_b))
-            Impl::concatImpl<SourceA, GenericArraySource>(src_a, *generic_source, sink);
-        else
-            throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
-    }
-
-    static void concatImpl(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
-    {
-        using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
-        if (auto nullable_generic_source = typeid_cast<NullableArraySource<GenericArraySource> *>(&src_a))
-            Impl::concatImpl<NullableArraySource<GenericArraySource>>(*nullable_generic_source, src_b, sink);
-        else if (auto generic_source = typeid_cast<GenericArraySource *>(&src_a))
-            Impl::concatImpl<GenericArraySource>(*generic_source, src_b, sink);
-        else
-            throw Exception("Unknown ArraySource type", ErrorCodes::LOGICAL_ERROR);
+            throw Exception(std::string("Unknown ArraySink type: ") + typeid(sink).name(), ErrorCodes::LOGICAL_ERROR);
     }
 };
 
-inline void arrayConcat(IArraySource & src_a, IArraySource & src_b, IArraySink & sink)
+inline void concat(const std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
-    using Impl = ApplyTypeListForClass<ArrayConcatImpl, TypeListNumber>::Type;
-    return Impl::concatImpl(src_a, src_b, sink);
+    using ConcatImpl = ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
+    return ConcatImpl::concat(sources, sink);
 }
 
 template <typename Source, typename Sink>

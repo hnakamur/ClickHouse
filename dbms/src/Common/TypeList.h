@@ -18,6 +18,9 @@ struct TypeList<>
 {
 };
 
+/// Apply TypeList as variadic template argument of Class.
+/// Usage:
+///     using ClassWithAppliedTypeList = ApplyTypeListForClass<Class, ConcreteTypeList>::Type;
 template <template <typename ...> typename Class, typename List, typename ... Types>
 struct ApplyTypeListForClass
 {
