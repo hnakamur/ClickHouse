@@ -1016,11 +1016,11 @@ static void append (const Source & source, Sink & sink)
     }
 }
 
-template <typename ... Types, typename Sink>
+template <typename Sink, typename ... Types>
 struct ArrayAppend;
 
-template <typename Type, typename ... Types, typename Sink>
-struct ArrayAppend<Type, Types ..., Sink>
+template <typename Sink, typename Type, typename ... Types>
+struct ArrayAppend<Sink, Type, Types ...>
 {
     static void append(const IArraySource & source, Sink & sink)
     {
@@ -1029,7 +1029,7 @@ struct ArrayAppend<Type, Types ..., Sink>
         else if(auto nullable_array = typeid_cast<const NullableArraySource<NumericArraySource<Type>> *>(&source))
             append(*nullable_array, sink);
         else
-            ArrayAppend<Types ..., Sink>::append(source, sink);
+            ArrayAppend<Sink, Types ...>::append(source, sink);
     }
 };
 
@@ -1050,7 +1050,8 @@ struct ArrayAppend<Sink>
 template <typename Sink>
 static void append(const IArraySource & source, Sink & sink)
 {
-    using AppendImpl = ApplyTypeListForClass<TypeListNumber, ArrayAppend>::Type;
+    using List = AppendToTypeList<Sink, TypeListNumber>::Type;
+    using AppendImpl = ApplyTypeListForClass<List, ArrayAppend>::Type;
     AppendImpl::append(source, sink);
 }
 
