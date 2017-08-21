@@ -1006,7 +1006,7 @@ inline ALWAYS_INLINE void writeSlice(const ArraySlice & slice, NullableArraySink
 /// Algorithms
 
 template <typename Source, typename Sink>
-static void append (Source & source, Sink & sink)
+static void append(Source & source, Sink & sink)
 {
     sink.row_num = 0;
     while (!source.isEnd())
@@ -1153,7 +1153,7 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
         const auto & offsets = source->getOffsets();
         sink.offsets.resize_fill(offsets.size());
         for (size_t i : ext::range(1, offsets.size()))
-            sink.offsets[i] += offsets[i] - offsets[i - 1];
+            sink.offsets[i] += offsets[i - 1] - (i > 1 ? offsets[i - 2] : 0);
     }
 
     sink.offsets[0] = 0;
