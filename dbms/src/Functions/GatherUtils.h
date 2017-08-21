@@ -1152,6 +1152,17 @@ void NO_INLINE concat(StringSources & sources, Sink && sink)
     }
 }
 
+template <typename SourceType, typename SinkType>
+struct ConcatGenericImpl
+{
+    static void concat(GenericArraySource * generic_source, SinkType & sink)
+    {
+        auto source = static_cast<SourceType *>(generic_source);
+        writeSlice(source->getWhole(), sink);
+        source->next();
+    }
+};
+
 template <typename Sink>
 static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySource>> & sources, Sink & sink)
 {
@@ -1188,17 +1199,6 @@ static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySour
                             ErrorCodes::LOGICAL_ERROR);
     }
 
-    template <typename SourceType, typename SinkType>
-    struct Impl
-    {
-        static void concat(GenericArraySource * generic_source, SinkType & sink)
-        {
-            auto source = static_cast<SourceType *>(generic_source);
-            writeSlice(source->getWhole(), sink);
-            source->next();
-        }
-    };
-
     while (!sink.isEnd())
     {
         for (auto i : ext::range(0, sources.size()))
@@ -1207,16 +1207,16 @@ static void NO_INLINE concatGeneric(const std::vector<std::unique_ptr<IArraySour
             if (is_const[i])
             {
                 if (is_nullable[i])
-                    Impl<ConstSource<NullableArraySource<GenericArraySource>>, Sink>::concat(source, sink);
+                    ConcatGenericImpl<ConstSource<NullableArraySource<GenericArraySource>>, Sink>::concat(source, sink);
                 else
-                    Impl<ConstSource<GenericArraySource>, Sink>::concat(source, sink);
+                    ConcatGenericImpl<ConstSource<GenericArraySource>, Sink>::concat(source, sink);
             }
             else
             {
                 if (is_nullable[i])
-                    Impl<NullableArraySource<GenericArraySource>, Sink>::concat(source, sink);
+                    ConcatGenericImpl<NullableArraySource<GenericArraySource>, Sink>::concat(source, sink);
                 else
-                    Impl<GenericArraySource, Sink>::concat(source, sink);
+                    ConcatGenericImpl<GenericArraySource, Sink>::concat(source, sink);
             }
         }
         sink.next();
