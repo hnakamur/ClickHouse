@@ -1069,6 +1069,58 @@ static void append(Source & source, Sink & sink)
     }
 }
 
+template <template <typename, typename ...> typename Base, typename Arg, typename ... Types>
+struct ArraySourceSelector;
+
+template <template <typename, typename ...> typename Base, typename Arg, typename Type, typename ... Types>
+struct ArraySourceSelector<Base, Arg, Type, Types ...>
+{
+    void select(IArraySource & source, Arg & arg)
+    {
+        if (auto array = typeid_cast<NumericArraySource<Type> *>(&source))
+            Base<Arg, Types ...>::selectImpl(*array, arg);
+        else if(auto nullable_array = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&source))
+            Base<Arg, Types ...>::selectImpl(*nullable_array, arg);
+        else if (auto const_array = typeid_cast<ConstSource<NumericArraySource<Type>> *>(&source))
+            Base<Arg, Types ...>::selectImpl(*const_array, arg);
+        else if(auto const_nullable_array = typeid_cast<ConstSource<NullableArraySource<NumericArraySource<Type>>> *>(&source))
+            Base<Arg, Types ...>::selectImpl(*const_nullable_array, arg);
+        else
+            Base<Arg, Types ...>::select(source, arg);
+    }
+};
+
+template <template <typename, typename ...> typename Base, typename Arg>
+struct ArraySourceSelector<Base, Arg>
+{
+    void select(IArraySource & source, Arg & arg)
+    {
+        if (auto array = typeid_cast<GenericArraySource *>(&source))
+            Base<Arg>::selectImpl(*array, arg);
+        else if(auto nullable_array = typeid_cast<NullableArraySource<GenericArraySource> *>(&source))
+            Base<Arg>::selectImpl(*nullable_array, arg);
+        else if (auto const_array = typeid_cast<ConstSource<GenericArraySource> *>(&source))
+            Base<Arg>::selectImpl(*const_array, arg);
+        else if(auto const_nullable_array = typeid_cast<ConstSource<NullableArraySource<GenericArraySource>> *>(&source))
+            Base<Arg>::selectImpl(*const_nullable_array, arg);
+        else
+            throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
+    }
+};
+
+
+template <typename Sink, typename Type, typename ... Types>
+struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Sink, Type, Types ...>
+{
+    template <typename Source>
+    void selectImpl(Source & source, Sink & sink)
+    {
+        append<Source, Sink>(source, sink);
+    }
+};
+
+/*
+
 template <typename Sink, typename ... Types>
 struct ArrayAppend;
 
@@ -1107,6 +1159,7 @@ struct ArrayAppend<Sink>
             throw Exception(std::string("Unknown ArraySource type: ") + typeid(source).name(), ErrorCodes::LOGICAL_ERROR);
     }
 };
+*/
 
 template <typename Sink>
 static void append(IArraySource & source, Sink & sink)
@@ -1408,6 +1461,9 @@ void NO_INLINE sliceDynamicOffsetBounded(Source && src, Sink && sink, IColumn & 
         src.next();
     }
 }
+
+
+
 
 
 template <typename SourceA, typename SourceB, typename Sink>
