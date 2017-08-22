@@ -1076,7 +1076,7 @@ template <template <typename ...> typename Base, typename Type, typename ... Typ
 struct ArraySourceSelector<Base, Type, Types ...>
 {
     template <typename ... Args>
-    static void select(IArraySource & source, Args ... args)
+    static void select(IArraySource & source, Args & ... args)
     {
         if (auto array = typeid_cast<NumericArraySource<Type> *>(&source))
             Base<Types ...>::selectImpl(*array, args ...);
@@ -1095,7 +1095,7 @@ template <template <typename ...> typename Base>
 struct ArraySourceSelector<Base>
 {
     template <typename ... Args>
-    static void select(IArraySource & source, Args ... args)
+    static void select(IArraySource & source, Args & ... args)
     {
         if (auto array = typeid_cast<GenericArraySource *>(&source))
             Base<>::selectImpl(*array, args ...);
@@ -1118,7 +1118,7 @@ template <template <typename ...> typename Base, typename Type, typename ... Typ
 struct ArraySinkSelector<Base, Type, Types ...>
 {
     template <typename ... Args>
-    static void select(IArraySink & sink, Args ... args)
+    static void select(IArraySink & sink, Args & ... args)
     {
         if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
             Base<>::selectImpl(*nullable_numeric_sink, args ...);
@@ -1133,7 +1133,7 @@ template <template <typename ...> typename Base>
 struct ArraySinkSelector<Base>
 {
     template <typename ... Args>
-    static void select(IArraySink & sink, Args ... args)
+    static void select(IArraySink & sink, Args & ... args)
     {
         if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
             Base<>::selectImpl(*nullable_generic_sink, args ...);
@@ -1355,7 +1355,7 @@ inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArrayS
     /// using List = typename AppendToTypeList<std::vector<std::unique_ptr<IArraySource>>, TypeListNumber>::Type;
     using ConcatImpl = typename ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
     using Sources = std::vector<std::unique_ptr<IArraySource>>;
-    return ConcatImpl::select<Sources &>(sink, sources);
+    return ConcatImpl::select(sink, sources);
 }
 
 template <typename Source, typename Sink>
