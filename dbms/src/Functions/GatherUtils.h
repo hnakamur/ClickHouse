@@ -1111,6 +1111,24 @@ struct ArraySourceSelector<Base>
 };
 
 
+template <typename ... Types>
+struct CallFunctionWithArraySource : public ArraySourceSelector<CallFunctionWithArraySource>
+{
+    template <typename Source, typename Function, typename ... Args>
+    void selectImpl(Source & source, Function func, Args & ... args)
+    {
+        func(source, args ...);
+    }
+};
+
+template <typename Function, typename ... Args>
+void callFunctionWithArraySource(IArraySource & source, Function func, Args & ... args)
+{
+    using Impl = typename ApplyTypeListForClass<CallFunctionWithArraySource, TypeListNumber>::Type;
+    Impl::select(source, func, args ...);
+};
+
+
 template <template <typename ...> typename Base, typename ... Types>
 struct ArraySinkSelector;
 
@@ -1144,23 +1162,46 @@ struct ArraySinkSelector<Base>
     }
 };
 
-
 template <typename ... Types>
-struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Types ...>
+struct CallFunctionWithArraySink : public ArraySinkSelector<CallFunctionWithArraySource>
 {
-    template <typename Source, typename Sink>
-    static void selectImpl(Source & source, Sink & sink)
+    template <typename Sink, typename Function, typename ... Args>
+    void selectImpl(Sink & sink, Function func, Args & ... args)
     {
-        append<Source, Sink>(source, sink);
+        func(sink, args ...);
     }
 };
+
+template <typename Function, typename ... Args>
+void callFunctionWithArraySink(IArraySink & sink, Function func, Args & ... args)
+{
+    using Impl = typename ApplyTypeListForClass<CallFunctionWithArraySink, TypeListNumber>::Type;
+    Impl::select(sink, func, args ...);
+};
+
+
+//template <typename ... Types>
+//struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Types ...>
+//{
+//    template <typename Source, typename Sink>
+//    static void selectImpl(Source & source, Sink & sink)
+//    {
+//        append<Source, Sink>(source, sink);
+//    }
+//};
+//
+//template <typename Sink>
+//static void append(IArraySource & source, Sink & sink)
+//{
+//    // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
+//    using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
+//    AppendImpl::select<Sink &>(source, sink);
+//}
 
 template <typename Sink>
 static void append(IArraySource & source, Sink & sink)
 {
-    // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
-    using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
-    AppendImpl::select<Sink &>(source, sink);
+    callFunctionWithArraySource(source, append, sink);
 }
 
 
