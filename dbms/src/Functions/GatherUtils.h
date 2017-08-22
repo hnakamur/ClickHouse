@@ -1328,7 +1328,7 @@ template <typename ... Types>
 struct ArrayConcat;
 
 template <typename ... Types>
-struct ArrayConcat : public ArraySinkSelector<ArrayConcat, Sources, Types ...>
+struct ArrayConcat : public ArraySinkSelector<ArrayConcat, Types ...>
 {
     using Sources = std::vector<std::unique_ptr<IArraySource>>;
 
