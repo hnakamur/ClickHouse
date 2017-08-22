@@ -1129,7 +1129,7 @@ struct ArraySinkSelector<Base, Type, Types ...>
     }
 };
 
-template <template <typename, typename ...> typename Base>
+template <template <typename ...> typename Base>
 struct ArraySinkSelector<Base>
 {
     template <typename ... Args>
