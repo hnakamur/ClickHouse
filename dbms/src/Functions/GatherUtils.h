@@ -1162,7 +1162,7 @@ struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySou
     template <typename Source, typename Sink, typename ... Args>
     static void selectImpl(Source & source, Sink & sink, Args & ... args)
     {
-        Base::selectSourceSink(source, sink, args ...);
+        Base<>::selectSourceSink(source, sink, args ...);
     }
 };
 
