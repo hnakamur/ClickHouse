@@ -1163,7 +1163,7 @@ struct ArraySinkSelector<Base>
 };
 
 template <typename ... Types>
-struct CallFunctionWithArraySink : public ArraySinkSelector<CallFunctionWithArraySource>
+struct CallFunctionWithArraySink : public ArraySinkSelector<CallFunctionWithArraySink>
 {
     template <typename Sink, typename Function, typename ... Args>
     void selectImpl(Sink & sink, Function func, Args & ... args)
