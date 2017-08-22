@@ -1114,14 +1114,14 @@ struct ArraySourceSelector<Base>
 template <typename ... Types>
 struct CallFunctionWithArraySource : public ArraySourceSelector<CallFunctionWithArraySource>
 {
-    template <typename Source, typename Function, typename ... Args>
+    template <typename Source, template <typename ...> typename Function, typename ... Args>
     void selectImpl(Source & source, Function func, Args & ... args)
     {
         func(source, args ...);
     }
 };
 
-template <typename Function, typename ... Args>
+template <template <typename ...> typename Function, typename ... Args>
 void callFunctionWithArraySource(IArraySource & source, Function func, Args & ... args)
 {
     using Impl = typename ApplyTypeListForClass<CallFunctionWithArraySource, TypeListNumber>::Type;
