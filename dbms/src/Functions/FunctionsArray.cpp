@@ -2949,13 +2949,13 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
         size_t column_size = argument_column->size();
         bool is_const = false;
 
-        if (auto argument_column_const = checkAndGetColumn<ColumnConst>(argument_column))
+        if (auto argument_column_const = typeid_cast<ColumnConst *>(argument_column))
         {
             is_const = true;
             argument_column = &argument_column_const->getDataColumn();
         }
 
-        if (auto argument_column_array = checkAndGetColumn<ColumnArray>(argument_column))
+        if (auto argument_column_array = typeid_cast<ColumnArray *>(argument_column))
             sources.emplace_back(createArraySource(*argument_column_array, is_const, column_size));
         else
             throw Exception{"Arguments for function " + getName() + " must be arrays.", ErrorCodes::LOGICAL_ERROR};

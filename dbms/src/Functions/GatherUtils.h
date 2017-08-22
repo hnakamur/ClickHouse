@@ -172,7 +172,7 @@ struct ConstSource : public Base
 
     /// template <typename ColumnType>
     explicit ConstSource(const ColumnConst & col)
-        : total_rows(col.size()), Base(static_cast<const typename Base::Column &>(col.getDataColumn()))
+        : Base(static_cast<const typename Base::Column &>(col.getDataColumn())), total_rows(col.size())
     {
     }
 
