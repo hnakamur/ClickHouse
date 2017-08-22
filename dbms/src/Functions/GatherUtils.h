@@ -1418,7 +1418,8 @@ struct ArrayConcat<>
 
 inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
-    using ConcatImpl = ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
+    using List = typename AppendToTypeList<std::vector<std::unique_ptr<IArraySource>>, TypeListNumber>::Type;
+    using ConcatImpl = typename ApplyTypeListForClass<ArrayConcat, List>::Type;
     return ConcatImpl::select(sink, sources);
 }
 
