@@ -1160,7 +1160,7 @@ static void append(IArraySource & source, Sink & sink)
 {
     // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
     using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
-    AppendImpl::select(source, sink);
+    AppendImpl::select(source, std::ref(sink));
 }
 
 
@@ -1354,7 +1354,7 @@ inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArrayS
 {
     /// using List = typename AppendToTypeList<std::vector<std::unique_ptr<IArraySource>>, TypeListNumber>::Type;
     using ConcatImpl = typename ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
-    return ConcatImpl::select(sink, sources);
+    return ConcatImpl::select(sink, std::ref(sources));
 }
 
 template <typename Source, typename Sink>
