@@ -2992,7 +2992,7 @@ String FunctionArraySlice::getName() const
 
 DataTypePtr FunctionArraySlice::getReturnTypeImpl(const DataTypes & arguments) const
 {
-    auto array_type = typeid_cast<DataTypeArray *>(arguments[1]);
+    auto array_type = typeid_cast<DataTypeArray *>(arguments[1].get());
     if (!array_type)
         throw Exception("First argument for function " + getName() + " must be an array but it has type "
                         + array->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
