@@ -1160,7 +1160,7 @@ static void append(IArraySource & source, Sink & sink)
 {
     // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
     using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
-    AppendImpl::select<Sink &>(source, sink);
+    AppendImpl::select(source, sink);
 }
 
 
