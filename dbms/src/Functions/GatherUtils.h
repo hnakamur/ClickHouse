@@ -1150,7 +1150,7 @@ struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySou
     template <typename Sink, typename ... Args>
     static void selectImpl(Sink & sink, IArraySource & source, Args & ... args)
     {
-        select(source, sink, args ...);
+        ArraySourceSelector<Base>::select(source, sink, args ...);
     }
 };
 
