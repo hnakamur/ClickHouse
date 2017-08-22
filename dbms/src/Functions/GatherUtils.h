@@ -1112,19 +1112,19 @@ struct ArraySourceSelector<Base>
 
 
 template <typename ... Types>
-struct CallFunctionWithArraySource : public ArraySourceSelector<CallFunctionWithArraySource>
+struct CallFunctorWithArraySource : public ArraySourceSelector<CallFunctorWithArraySource>
 {
-    template <typename Source, template <typename ...> typename Function, typename ... Args>
-    void selectImpl(Source & source, Function func, Args & ... args)
+    template <typename Source, typename Functor, typename ... Args>
+    void selectImpl(Source & source, Functor func, Args & ... args)
     {
         func(source, args ...);
     }
 };
 
-template <template <typename ...> typename Function, typename ... Args>
-void callFunctionWithArraySource(IArraySource & source, Function func, Args & ... args)
+template <typename Functor, typename ... Args>
+void callFunctorWithArraySource(IArraySource & source, Functor func, Args & ... args)
 {
-    using Impl = typename ApplyTypeListForClass<CallFunctionWithArraySource, TypeListNumber>::Type;
+    using Impl = typename ApplyTypeListForClass<CallFunctorWithArraySource, TypeListNumber>::Type;
     Impl::select(source, func, args ...);
 };
 
@@ -1198,10 +1198,17 @@ void callFunctionWithArraySink(IArraySink & sink, Function func, Args & ... args
 //    AppendImpl::select<Sink &>(source, sink);
 //}
 
+
+struct AppendWrapper
+{
+    template <typename Source, typename Sink>
+    void operator()(Source & source, Sink & sink) { append<Source, Sink>(source, sink); }
+};
+
 template <typename Sink>
 static void append(IArraySource & source, Sink & sink)
 {
-    callFunctionWithArraySource(source, append, sink);
+    callFunctorWithArraySource(source, AppendWrapper(), sink);
 }
 
 
