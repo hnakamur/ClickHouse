@@ -2977,4 +2977,84 @@ void FunctionArrayConcat::executeImpl(Block & block, const ColumnNumbers & argum
     std::cerr << block.dumpStructure() << std::endl;
 }
 
+
+/// Implementation of FunctionArraySlice.
+
+FunctionPtr FunctionArraySlice::create(const Context & context)
+{
+    return std::make_shared<FunctionArraySlice>();
+}
+
+String FunctionArraySlice::getName() const
+{
+    return name;
+}
+
+DataTypePtr FunctionArraySlice::getReturnTypeImpl(const DataTypes & arguments) const
+{
+    auto array_type = typeid_cast<DataTypeArray *>(arguments[1]);
+    if (!array_type)
+        throw Exception("First argument for function " + getName() + " must be an array but it has type "
+                        + array->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+
+    for (size_t i = 1; i < arguments.size(); ++i)
+    {
+        if (!arguments[i]->isNumeric())
+            throw Exception("Argument " + toString(i) + " for function " + getName() + " must be numeric but it has type "
+                            + arguments[i]->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+
+    }
+
+    return arguments[0];
+}
+
+void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
+{
+    std::cerr << block.dumpStructure() << std::endl;
+    auto & result_column = block.getByPosition(result).column;
+    const DataTypePtr & return_type = block.getByPosition(result).type;
+    result_column = return_type->createColumn();
+
+    auto & array_column = block.getByPosition(arguments[0]).column;
+    auto & offset_column = block.getByPosition(arguments[1]).column;
+    auto & length_column = block.getByPosition(arguments[2]).column;
+
+    std::unique_ptr<IArraySource> source;
+
+
+    size_t size = array_column->size();
+    bool is_const = false;
+
+    if (auto const_array_column = typeid_cast<ColumnConst *>(array_column.get()))
+    {
+        is_const = true;
+        array_column = const_array_column->getDataColumnPtr();
+    }
+
+    if (auto argument_column_array = typeid_cast<ColumnArray *>(array_column.get()))
+        source = createArraySource(*argument_column_array, is_const, size);
+    else
+        throw Exception{"First arguments for function " + getName() + " must be array.", ErrorCodes::LOGICAL_ERROR};
+
+    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
+
+    if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
+    {
+        size_t offset = const_offset_column->getUInt(0);
+        sliceFromLeftConstantOffsetUnbounded(*source, *sink, offset);
+    }
+
+    auto array = checkAndGetColumn<ColumnArray>(result_column.get());
+    if (array)
+    {
+        auto & offsets = array->getOffsets();
+        std::cerr << offsets.size()  << " " << array->size()<< std::endl;
+        for (auto & val : offsets)
+            std::cerr << val << ' ';
+        std::cerr << std::endl;
+    }
+
+    std::cerr << block.dumpStructure() << std::endl;
+}
+
 }
