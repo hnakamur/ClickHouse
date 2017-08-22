@@ -1145,7 +1145,7 @@ struct ArraySinkSelector<Base>
 };
 
 template <template <typename ...> typename Base>
-struct ArraySinkSourceSelector<Base> : public ArraySinkSelector<Base>, public ArraySourceSelector<Base>
+struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySourceSelector<Base>
 {
     template <typename Sink, typename ... Args>
     static void selectImpl(Sink & sink, IArraySource & source, Args & ... args)
