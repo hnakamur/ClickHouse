@@ -1109,6 +1109,38 @@ struct ArraySourceSelector<Base, Arg>
 };
 
 
+template <template <typename, typename ...> typename Base, typename Arg, typename ... Types>
+struct ArraySinkSelector;
+
+template <template <typename, typename ...> typename Base, typename Arg, typename Type, typename ... Types>
+struct ArraySinkSelector<Base, Arg, Type, Types ...>
+{
+    static void select(IArraySink & sink, Arg & arg)
+    {
+        if (auto nullable_numeric_sink = typeid_cast<NullableArraySink<NumericArraySink<Type>> *>(&sink))
+            Base<Arg>::selectImpl(*nullable_numeric_sink, arg);
+        else if (auto numeric_sink = typeid_cast<NumericArraySink<Type> *>(&sink))
+            Base<Arg>::selectImpl(*numeric_sink, arg);
+        else
+            Base<Arg, Types ...>::select(sink, arg);
+    }
+};
+
+template <template <typename, typename ...> typename Base, typename Arg>
+struct ArraySinkSelector<Base, Arg>
+{
+    static void select(IArraySink & sink, Arg & arg)
+    {
+        if (auto nullable_generic_sink = typeid_cast<NullableArraySink<GenericArraySink> *>(&sink))
+            Base<Arg>::selectImpl(*nullable_generic_sink, arg);
+        else if (auto generic_sink = typeid_cast<GenericArraySink *>(&sink))
+            Base<Arg>::selectImpl(*generic_sink, arg);
+        else
+            throw Exception(std::string("Unknown ArraySink type: ") + typeid(sink).name(), ErrorCodes::LOGICAL_ERROR);
+    }
+};
+
+
 template <typename Sink, typename ... Types>
 struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Sink, Types ...>
 {
@@ -1330,9 +1362,30 @@ void NO_INLINE concat(const std::vector<std::unique_ptr<IArraySource>> & sources
     }
 }
 
-template <typename ... Types>
+template <typename Sources, typename ... Types>
 struct ArrayConcat;
 
+template <typename Sources, typename ... Types>
+struct ArrayConcat : public ArraySourceSelector<ArrayConcat, Sources, Types ...>
+{
+    template <typename Sink>
+    static void selectImpl(Sink & sink, Sources & sources)
+    {
+        concat<Sink>(sources, sink);
+    }
+
+    static void selectImpl(GenericArraySink & sink, Sources & sources)
+    {
+        concatGeneric<GenericArraySink>(sources, sink);
+    }
+
+    static void selectImpl(NullableArraySink<GenericArraySink> & sink, Sources & sources)
+    {
+        concatGeneric<NullableArraySink<GenericArraySink>>(sources, sink);
+    }
+};
+
+/*
 template <typename Type, typename ... Types>
 struct ArrayConcat<Type, Types ...>
 {
@@ -1361,11 +1414,12 @@ struct ArrayConcat<>
             throw Exception(std::string("Unknown ArraySink type: ") + typeid(sink).name(), ErrorCodes::LOGICAL_ERROR);
     }
 };
+*/
 
 inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
     using ConcatImpl = ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
-    return ConcatImpl::concatImpl(sources, sink);
+    return ConcatImpl::select(sink, sources);
 }
 
 template <typename Source, typename Sink>
