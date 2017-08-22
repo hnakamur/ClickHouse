@@ -1078,7 +1078,7 @@ struct ArraySourceSelector<Base, Arg, Type, Types ...>
     static void select(IArraySource & source, Arg & arg)
     {
         if (auto array = typeid_cast<NumericArraySource<Type> *>(&source))
-            Base<Arg, Types ...>::template selectImpl<NumericArraySource<Type>>(*array, arg);
+            Base<Arg, Types ...>::selectImpl(*array, arg);
         else if(auto nullable_array = typeid_cast<NullableArraySource<NumericArraySource<Type>> *>(&source))
             Base<Arg, Types ...>::selectImpl(*nullable_array, arg);
         else if (auto const_array = typeid_cast<ConstSource<NumericArraySource<Type>> *>(&source))
@@ -1109,8 +1109,8 @@ struct ArraySourceSelector<Base, Arg>
 };
 
 
-template <typename Sink, typename Type, typename ... Types>
-struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Sink, Type, Types ...>
+template <typename Sink, typename ... Types>
+struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Sink, Types ...>
 {
     template <typename Source>
     static void selectImpl(Source & source, Sink & sink)
