@@ -1075,7 +1075,7 @@ struct ArraySourceSelector;
 template <template <typename, typename ...> typename Base, typename Arg, typename Type, typename ... Types>
 struct ArraySourceSelector<Base, Arg, Type, Types ...>
 {
-    void select(IArraySource & source, Arg & arg)
+    static void select(IArraySource & source, Arg & arg)
     {
         if (auto array = typeid_cast<NumericArraySource<Type> *>(&source))
             Base<Arg, Types ...>::selectImpl(*array, arg);
@@ -1093,7 +1093,7 @@ struct ArraySourceSelector<Base, Arg, Type, Types ...>
 template <template <typename, typename ...> typename Base, typename Arg>
 struct ArraySourceSelector<Base, Arg>
 {
-    void select(IArraySource & source, Arg & arg)
+    static void select(IArraySource & source, Arg & arg)
     {
         if (auto array = typeid_cast<GenericArraySource *>(&source))
             Base<Arg>::selectImpl(*array, arg);
@@ -1113,7 +1113,7 @@ template <typename Sink, typename Type, typename ... Types>
 struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Sink, Type, Types ...>
 {
     template <typename Source>
-    void selectImpl(Source & source, Sink & sink)
+    static void selectImpl(Source & source, Sink & sink)
     {
         append<Source, Sink>(source, sink);
     }
