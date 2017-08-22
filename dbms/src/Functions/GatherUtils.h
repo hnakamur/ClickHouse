@@ -1145,7 +1145,7 @@ struct ArraySinkSelector<Base>
 };
 
 template <template <typename ...> typename Base>
-struct ArraySinkSourceSelector : public ArraySinkSelector<ArraySinkSourceSelector<Base>>, public ArraySourceSelector<Base>
+struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySourceSelector<Base>
 {
     template <typename ... Args>
     static void select(IArraySource & source, IArraySink & sink, Args & ... args)
@@ -1157,6 +1157,12 @@ struct ArraySinkSourceSelector : public ArraySinkSelector<ArraySinkSourceSelecto
     static void selectImpl(Sink & sink, IArraySource & source, Args & ... args)
     {
         ArraySourceSelector<Base>::select(source, sink, args ...);
+    }
+
+    template <typename Source, typename Sink, typename ... Args>
+    static void selectImpl(Source & source, Sink & sink, Args & ... args)
+    {
+        Base::selectSourceSink(source, sink, args ...);
     }
 };
 
@@ -1511,7 +1517,7 @@ struct SliceFromLeftConstantOffsetUnboundedSelectArraySource
         : public ArraySinkSourceSelector<SliceFromLeftConstantOffsetUnboundedSelectArraySource>
 {
     template <typename Source, typename Sink>
-    static void selectImpl(Source & source, Sink & sink, size_t & offset)
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset)
     {
         sliceFromLeftConstantOffsetUnbounded<Source, Sink>(source, sink, offset);
     }
