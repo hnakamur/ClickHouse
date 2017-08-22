@@ -1145,14 +1145,14 @@ struct ArraySinkSelector<Base>
 };
 
 template <template <typename ...> typename Base>
-struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySourceSelector<Base>
+struct ArraySinkSourceSelector : public ArraySinkSelector<ArraySinkSourceSelector<Base>>, public ArraySourceSelector<Base>
 {
     template <typename ... Args>
     static void select(IArraySource & source, IArraySink & sink, Args & ... args)
     {
         ArraySinkSelector<Base>::select(sink, source, args ...);
     }
-    
+
     template <typename Sink, typename ... Args>
     static void selectImpl(Sink & sink, IArraySource & source, Args & ... args)
     {
