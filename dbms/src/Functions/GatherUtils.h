@@ -168,11 +168,11 @@ struct ConstSource : public Base
     size_t total_rows;
     size_t row_num = 0;
 
-    Base base;
+    /// Base base;
 
-    template <>
+    /// template <typename ColumnType>
     explicit ConstSource(const ColumnConst & col)
-        : total_rows(col.size()), base(static_cast<const typename Base::Column &>(col.getDataColumn()))
+        : total_rows(col.size()), Base(static_cast<const typename Base::Column &>(col.getDataColumn()))
     {
     }
 
@@ -203,7 +203,7 @@ struct ConstSource : public Base
 
     size_t getSizeForReserve() const
     {
-        return total_rows * base.getSizeForReserve();
+        return total_rows * Base::getSizeForReserve();
     }
 
     size_t getColumnSize() const // overrides for IArraySource
@@ -216,30 +216,30 @@ struct ConstSource : public Base
         return true;
     }
 
-    Slice getWhole() const
-    {
-        return base.getWhole();
-    }
-
-    Slice getSliceFromLeft(size_t offset) const
-    {
-        return base.getSliceFromLeft(offset);
-    }
-
-    Slice getSliceFromLeft(size_t offset, size_t length) const
-    {
-        return base.getSliceFromLeft(offset, length);
-    }
-
-    Slice getSliceFromRight(size_t offset) const
-    {
-        return base.getSliceFromRight(offset);
-    }
-
-    Slice getSliceFromRight(size_t offset, size_t length) const
-    {
-        return base.getSliceFromRight(offset, length);
-    }
+//    Slice getWhole() const
+//    {
+//        return base.getWhole();
+//    }
+//
+//    Slice getSliceFromLeft(size_t offset) const
+//    {
+//        return base.getSliceFromLeft(offset);
+//    }
+//
+//    Slice getSliceFromLeft(size_t offset, size_t length) const
+//    {
+//        return base.getSliceFromLeft(offset, length);
+//    }
+//
+//    Slice getSliceFromRight(size_t offset) const
+//    {
+//        return base.getSliceFromRight(offset);
+//    }
+//
+//    Slice getSliceFromRight(size_t offset, size_t length) const
+//    {
+//        return base.getSliceFromRight(offset, length);
+//    }
 };
 
 
