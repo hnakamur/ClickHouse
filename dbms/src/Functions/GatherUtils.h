@@ -1366,7 +1366,7 @@ template <typename Sources, typename ... Types>
 struct ArrayConcat;
 
 template <typename Sources, typename ... Types>
-struct ArrayConcat : public ArraySourceSelector<ArrayConcat, Sources, Types ...>
+struct ArrayConcat : public ArraySinkSelector<ArrayConcat, Sources, Types ...>
 {
     template <typename Sink>
     static void selectImpl(Sink & sink, Sources & sources)
