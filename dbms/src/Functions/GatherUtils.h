@@ -1111,24 +1111,6 @@ struct ArraySourceSelector<Base>
 };
 
 
-template <typename ... Types>
-struct CallFunctorWithArraySource : public ArraySourceSelector<CallFunctorWithArraySource>
-{
-    template <typename Source, typename Functor, typename ... Args>
-    void selectImpl(Source & source, Functor func, Args & ... args)
-    {
-        func(source, args ...);
-    }
-};
-
-template <typename Functor, typename ... Args>
-void callFunctorWithArraySource(IArraySource & source, Functor func, Args & ... args)
-{
-    using Impl = typename ApplyTypeListForClass<CallFunctorWithArraySource, TypeListNumber>::Type;
-    Impl::select(source, func, args ...);
-};
-
-
 template <template <typename ...> typename Base, typename ... Types>
 struct ArraySinkSelector;
 
@@ -1162,53 +1144,23 @@ struct ArraySinkSelector<Base>
     }
 };
 
+
 template <typename ... Types>
-struct CallFunctionWithArraySink : public ArraySinkSelector<CallFunctionWithArraySink>
-{
-    template <typename Sink, typename Function, typename ... Args>
-    void selectImpl(Sink & sink, Function func, Args & ... args)
-    {
-        func(sink, args ...);
-    }
-};
-
-template <typename Function, typename ... Args>
-void callFunctionWithArraySink(IArraySink & sink, Function func, Args & ... args)
-{
-    using Impl = typename ApplyTypeListForClass<CallFunctionWithArraySink, TypeListNumber>::Type;
-    Impl::select(sink, func, args ...);
-};
-
-
-//template <typename ... Types>
-//struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Types ...>
-//{
-//    template <typename Source, typename Sink>
-//    static void selectImpl(Source & source, Sink & sink)
-//    {
-//        append<Source, Sink>(source, sink);
-//    }
-//};
-//
-//template <typename Sink>
-//static void append(IArraySource & source, Sink & sink)
-//{
-//    // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
-//    using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
-//    AppendImpl::select<Sink &>(source, sink);
-//}
-
-
-struct AppendWrapper
+struct ArrayAppend : public ArraySourceSelector<ArrayAppend, Types ...>
 {
     template <typename Source, typename Sink>
-    void operator()(Source & source, Sink & sink) { append<Source, Sink>(source, sink); }
+    static void selectImpl(Source & source, Sink & sink)
+    {
+        append<Source, Sink>(source, sink);
+    }
 };
 
 template <typename Sink>
 static void append(IArraySource & source, Sink & sink)
 {
-    callFunctorWithArraySource(source, AppendWrapper(), sink);
+    // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
+    using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
+    AppendImpl::select<Sink &>(source, sink);
 }
 
 
