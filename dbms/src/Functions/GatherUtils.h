@@ -1523,7 +1523,7 @@ struct SliceFromLeftConstantOffsetUnboundedSelectArraySource
     }
 };
 
-void inline sliceFromLeftConstantOffsetUnbounded(IArraySource & src, IArraySink & sink, size_t offset)
+inline void sliceFromLeftConstantOffsetUnbounded(IArraySource & src, IArraySink & sink, size_t offset)
 {
     using Impl = typename ApplyTypeListForClass<SliceFromLeftConstantOffsetUnboundedSelectArraySource, TypeListNumber>::Type;
     Impl::select(src, sink, offset);
