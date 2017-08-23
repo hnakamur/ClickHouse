@@ -1144,7 +1144,7 @@ struct ArraySinkSelector<Base>
     }
 };
 
-template <template <typename ...> typename Base>
+template <typename Base>
 struct ArraySinkSourceSelector
 {
     template <typename ... Args>
@@ -1166,7 +1166,7 @@ struct ArraySinkSourceSelector
     template <typename Source, typename Sink, typename ... Args>
     static void selectImpl(Source & source, Sink & sink, Args & ... args)
     {
-        Base<>::selectSourceSink(source, sink, args ...);
+        Base::selectSourceSink(source, sink, args ...);
     }
 };
 
