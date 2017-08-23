@@ -3026,7 +3026,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
     auto & offset_column = block.getByPosition(arguments[1]).column;
     // auto & length_column = block.getByPosition(arguments[2]).column;
 
-    result_column->reserve(array_column->size());
+    // result_column->reserve(array_column->size());
 
     std::unique_ptr<IArraySource> source;
 
@@ -3047,7 +3047,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
 
     auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
 
-    if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
+    /// if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
     {
         size_t offset = const_offset_column->getUInt(0);
         sliceFromLeftConstantOffsetUnbounded(*source, *sink, offset);
