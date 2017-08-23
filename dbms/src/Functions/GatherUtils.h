@@ -1486,10 +1486,7 @@ void NO_INLINE sliceDynamicOffsetBounded(Source & src, Sink & sink, IColumn & of
         Int64 size = length_column.getInt(row_num);
 
         if (size < 0)
-        {
-            Int64 elements_before_offset = offset > 0 ? offset - 1 : -offset;
-            size += static_cast<Int64>(src.getElementSize()) - elements_before_offset;
-        }
+            size += offset > 0 ? static_cast<Int64>(src.getElementSize()) - (offset - 1) : -offset;
 
         if (offset != 0 && size > 0)
         {
