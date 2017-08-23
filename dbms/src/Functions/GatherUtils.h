@@ -1455,9 +1455,15 @@ void NO_INLINE sliceFromRightConstantOffsetBounded(Source & src, Sink & sink, si
 template <typename Source, typename Sink>
 void NO_INLINE sliceDynamicOffsetUnbounded(Source & src, Sink & sink, IColumn & offset_column)
 {
+    const bool is_null = offset_column.isNull();
+    const bool is_nullable = offset_column.isNullable();
+    auto null_map = is_nullable ? &static_cast<ColumnNullable &>(offset_column).getNullMapConcreteColumn().getData() : nullptr;
+
     while (!src.isEnd())
     {
-        Int64 offset = offset_column.getInt(src.rowNum());
+        auto row_num = src.rowNum();
+        bool has_offset = !is_null && !(is_nullable && (*null_map)[row_num]);
+        Int64 offset = has_offset ? offset_column.getInt(row_num) : 1;
 
         if (offset != 0)
         {
@@ -1479,11 +1485,21 @@ void NO_INLINE sliceDynamicOffsetUnbounded(Source & src, Sink & sink, IColumn & 
 template <typename Source, typename Sink>
 void NO_INLINE sliceDynamicOffsetBounded(Source & src, Sink & sink, IColumn & offset_column, IColumn & length_column)
 {
+    const bool is_offset_null = offset_column.isNull();
+    const bool is_offset_nullable = offset_column.isNullable();
+    auto offset_null_map = is_offset_nullable ? &static_cast<ColumnNullable &>(offset_column).getNullMapConcreteColumn().getData() : nullptr;
+
+    const bool is_length_null = length_column.isNull();
+    const bool is_length_nullable = length_column.isNullable();
+    auto length_null_map = is_length_nullable ? &static_cast<ColumnNullable &>(length_column).getNullMapConcreteColumn().getData() : nullptr;
+
     while (!src.isEnd())
     {
         size_t row_num = src.rowNum();
-        Int64 offset = offset_column.getInt(row_num);
-        Int64 size = length_column.getInt(row_num);
+        bool has_offset = !is_offset_null && !(is_offset_nullable && (*offset_null_map)[row_num]);
+        bool has_length = !is_length_null && !(is_length_nullable && (*length_null_map)[row_num]);
+        Int64 offset = has_offset ? offset_column.getInt(row_num) : 1;
+        Int64 size = has_length ? length_column.getInt(row_num) : static_cast<Int64>(src.getElementSize());
 
         if (size < 0)
             size += offset > 0 ? static_cast<Int64>(src.getElementSize()) - (offset - 1) : -offset;
