@@ -120,6 +120,11 @@ struct NumericArraySource : public IArraySource
         return offsets.size();
     }
 
+    size_t getArraySize() const
+    {
+        return offsets[row_num] - prev_offset;
+    }
+
     Slice getWhole() const
     {
         return {&elements[prev_offset], offsets[row_num] - prev_offset};
@@ -602,6 +607,11 @@ struct GenericArraySource : public IArraySource
     size_t getColumnSize() const override
     {
         return elements.size();
+    }
+
+    size_t getArraySize() const
+    {
+        return offsets[row_num] - prev_offset;
     }
 
     Slice getWhole() const
@@ -1388,11 +1398,17 @@ void NO_INLINE sliceFromLeftConstantOffsetUnbounded(Source & src, Sink & sink, s
 }
 
 template <typename Source, typename Sink>
-void NO_INLINE sliceFromLeftConstantOffsetBounded(Source & src, Sink & sink, size_t offset, size_t length)
+void NO_INLINE sliceFromLeftConstantOffsetBounded(Source & src, Sink & sink, size_t offset, ssize_t length)
 {
     while (!src.isEnd())
     {
-        writeSlice(src.getSliceFromLeft(offset, length), sink);
+        ssize_t size = length;
+        if (size < 0)
+            size += static_cast<ssize_t>(src.getArraySize()) - offset;
+
+        if (size > 0)
+            writeSlice(src.getSliceFromLeft(offset, size), sink);
+
         sink.next();
         src.next();
     }
@@ -1410,11 +1426,17 @@ void NO_INLINE sliceFromRightConstantOffsetUnbounded(Source & src, Sink & sink, 
 }
 
 template <typename Source, typename Sink>
-void NO_INLINE sliceFromRightConstantOffsetBounded(Source & src, Sink & sink, size_t offset, size_t length)
+void NO_INLINE sliceFromRightConstantOffsetBounded(Source & src, Sink & sink, size_t offset, ssize_t length)
 {
     while (!src.isEnd())
     {
-        writeSlice(src.getSliceFromRight(offset, length), sink);
+        ssize_t size = length;
+        if (size < 0)
+            size += static_cast<ssize_t>(src.getArraySize()) - offset;
+
+        if (size > 0)
+            writeSlice(src.getSliceFromRight(offset, size), sink);
+
         sink.next();
         src.next();
     }
@@ -1451,9 +1473,15 @@ void NO_INLINE sliceDynamicOffsetBounded(Source & src, Sink & sink, IColumn & of
     {
         size_t row_num = src.rowNum();
         Int64 offset = offset_column.getInt(row_num);
-        UInt64 size = length_column.getInt(row_num);
+        Int64 size = length_column.getInt(row_num);
 
-        if (offset != 0 && size < 0x8000000000000000ULL)
+        if (size < 0)
+        {
+            Int64 elements_before_offset = offset > 0 ? offset - 1 : -offset;
+            size += static_cast<Int64>(src.getArraySize()) - elements_before_offset;
+        }
+
+        if (offset != 0 && size > 0)
         {
             typename std::decay<Source>::type::Slice slice;
 
@@ -1517,12 +1545,85 @@ struct SliceFromLeftConstantOffsetUnboundedSelectArraySource
     }
 };
 
+struct SliceFromLeftConstantOffsetBoundedSelectArraySource
+        : public ArraySinkSourceSelector<SliceFromLeftConstantOffsetBoundedSelectArraySource>
+{
+    template <typename Source, typename Sink>
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, size_t & length)
+    {
+        sliceFromLeftConstantOffsetBounded<Source, Sink>(source, sink, offset, length);
+    }
+};
+
+struct SliceFromRightConstantOffsetUnboundedSelectArraySource
+        : public ArraySinkSourceSelector<SliceFromRightConstantOffsetUnboundedSelectArraySource>
+{
+    template <typename Source, typename Sink>
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset)
+    {
+        sliceFromRightConstantOffsetUnbounded<Source, Sink>(source, sink, offset);
+    }
+};
+
+struct SliceFromRightConstantOffsetBoundedSelectArraySource
+        : public ArraySinkSourceSelector<SliceFromRightConstantOffsetBoundedSelectArraySource>
+{
+    template <typename Source, typename Sink>
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, size_t & length)
+    {
+        sliceFromRightConstantOffsetBounded<Source, Sink>(source, sink, offset, length);
+    }
+};
+
+struct SliceDynamicOffsetUnboundedSelectArraySource
+        : public ArraySinkSourceSelector<SliceDynamicOffsetUnboundedSelectArraySource>
+{
+    template <typename Source, typename Sink>
+    static void selectSourceSink(Source & source, Sink & sink, IColumn & offset_column)
+    {
+        sliceDynamicOffsetUnbounded<Source, Sink>(source, sink, offset_column);
+    }
+};
+
+struct SliceDynamicOffsetBoundedSelectArraySource
+        : public ArraySinkSourceSelector<SliceDynamicOffsetBoundedSelectArraySource>
+{
+    template <typename Source, typename Sink>
+    static void selectSourceSink(Source & source, Sink & sink, IColumn & offset_column, IColumn & length_column)
+    {
+        sliceDynamicOffsetBounded<Source, Sink>(source, sink, offset_column, length_column);
+    }
+};
+
 inline void sliceFromLeftConstantOffsetUnbounded(IArraySource & src, IArraySink & sink, size_t offset)
 {
     SliceFromLeftConstantOffsetUnboundedSelectArraySource::select(src, sink, offset);
 }
 
+inline void sliceFromLeftConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t offset, size_t length)
+{
+    SliceFromLeftConstantOffsetBoundedSelectArraySource::select(src, sink, offset, length);
+}
 
+inline void sliceFromRightConstantOffsetUnbounded(IArraySource & src, IArraySink & sink, size_t offset)
+{
+    SliceFromRightConstantOffsetUnboundedSelectArraySource::select(src, sink, offset);
+}
+
+inline void sliceFromRightConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t & offset, size_t & length)
+{
+    SliceFromRightConstantOffsetBoundedSelectArraySource::select(src, sink, offset, length);
+}
+
+inline void sliceDynamicOffsetUnbounded(IArraySource & src, IArraySink & sink, IColumn & offset_column)
+{
+    SliceDynamicOffsetUnboundedSelectArraySource::select(src, sink, offset_column);
+}
+
+inline void sliceDynamicOffsetBounded(IArraySource & src, IArraySink & sink, IColumn & offset_column, IColumn & length_column)
+{
+    SliceDynamicOffsetBoundedSelectArraySource::select(src, sink, offset_column, length_column);
+}
 
 template <typename SourceA, typename SourceB, typename Sink>
 void NO_INLINE conditional(SourceA && src_a, SourceB && src_b, Sink && sink, const PaddedPODArray<UInt8> & condition)

@@ -3024,9 +3024,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
 
     auto & array_column = block.getByPosition(arguments[0]).column;
     auto & offset_column = block.getByPosition(arguments[1]).column;
-    // auto & length_column = block.getByPosition(arguments[2]).column;
-
-    // result_column->reserve(array_column->size());
+    auto & length_column = block.getByPosition(arguments[2]).column;
 
     std::unique_ptr<IArraySource> source;
 
@@ -3045,13 +3043,50 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
     else
         throw Exception{"First arguments for function " + getName() + " must be array.", ErrorCodes::LOGICAL_ERROR};
 
-    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column.get()), size);
+    auto sink = createArraySink(typeid_cast<ColumnArray &>(*result_column), size);
 
-    /// if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
+    if (offset_column->isNull())
     {
-        size_t offset = offset_column->getUInt(0);
-        sliceFromLeftConstantOffsetUnbounded(*source, *sink, offset);
+        if (length_column->isNull())
+            result_column = array_column->clone();
+        else if (length_column->isConst())
+            sliceFromLeftConstantOffsetBounded(source, sink, 0, length_column->getInt(0));
+        else
+        {
+            auto const_offset_column = std::make_shared<ColumnConst>(std::make_shared<ColumnInt8>(1, 1), size);
+            sliceDynamicOffsetBounded(*source, *sink, *const_offset_column, *length_column);
+        }
     }
+    else if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
+    {
+        ssize_t offset = offset_column->getUInt(0);
+
+        if (length_column->isNull())
+        {
+            if (offset > 0)
+                sliceFromLeftConstantOffsetUnbounded(*source, *sink, static_cast<size_t>(offset - 1));
+            else
+                sliceFromRightConstantOffsetUnbounded(*source, *sink, static_cast<size_t>(-offset));
+        }
+        else if (length_column->isConst())
+        {
+            ssize_t length = length_column->getInt(0);
+            if (offset > 0)
+                sliceFromLeftConstantOffsetBounded(*source, *sink, static_cast<size_t>(offset - 1), length);
+            else
+                sliceFromLeftConstantOffsetBounded(*source, *sink, static_cast<size_t>(-offset), length);
+        }
+        else
+            sliceDynamicOffsetBounded(*source, *sink, *offset_column, *length_column);
+    }
+    else
+    {
+        if (length_column->isNull())
+            sliceDynamicOffsetUnbounded(*source, *sink, *offset_column);
+        else
+            sliceDynamicOffsetBounded(*source, *sink, *offset_column, *length_column);
+    }
+
 
     auto array = checkAndGetColumn<ColumnArray>(result_column.get());
     if (array)
