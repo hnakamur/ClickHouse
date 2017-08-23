@@ -3017,7 +3017,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
 
     auto & array_column = block.getByPosition(arguments[0]).column;
     auto & offset_column = block.getByPosition(arguments[1]).column;
-    auto & length_column = block.getByPosition(arguments[2]).column;
+    // auto & length_column = block.getByPosition(arguments[2]).column;
 
     std::unique_ptr<IArraySource> source;
 
