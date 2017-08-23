@@ -3050,7 +3050,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
         if (length_column->isNull())
             result_column = array_column->clone();
         else if (length_column->isConst())
-            sliceFromLeftConstantOffsetBounded(source, sink, 0, length_column->getInt(0));
+            sliceFromLeftConstantOffsetBounded(*source, *sink, 0, length_column->getInt(0));
         else
         {
             auto const_offset_column = std::make_shared<ColumnConst>(std::make_shared<ColumnInt8>(1, 1), size);
@@ -3074,7 +3074,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
             if (offset > 0)
                 sliceFromLeftConstantOffsetBounded(*source, *sink, static_cast<size_t>(offset - 1), length);
             else
-                sliceFromLeftConstantOffsetBounded(*source, *sink, static_cast<size_t>(-offset), length);
+                sliceFromRightConstantOffsetBounded(*source, *sink, static_cast<size_t>(-offset), length);
         }
         else
             sliceDynamicOffsetBounded(*source, *sink, *offset_column, *length_column);

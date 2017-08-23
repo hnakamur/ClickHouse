@@ -1610,7 +1610,7 @@ inline void sliceFromLeftConstantOffsetUnbounded(IArraySource & src, IArraySink 
     SliceFromLeftConstantOffsetUnboundedSelectArraySource::select(src, sink, offset);
 }
 
-inline void sliceFromLeftConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t offset, size_t length)
+inline void sliceFromLeftConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t offset, ssize_t length)
 {
     SliceFromLeftConstantOffsetBoundedSelectArraySource::select(src, sink, offset, length);
 }
@@ -1620,7 +1620,7 @@ inline void sliceFromRightConstantOffsetUnbounded(IArraySource & src, IArraySink
     SliceFromRightConstantOffsetUnboundedSelectArraySource::select(src, sink, offset);
 }
 
-inline void sliceFromRightConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t & offset, size_t & length)
+inline void sliceFromRightConstantOffsetBounded(IArraySource & src, IArraySink & sink, size_t offset, ssize_t length)
 {
     SliceFromRightConstantOffsetBoundedSelectArraySource::select(src, sink, offset, length);
 }
