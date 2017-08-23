@@ -2992,6 +2992,9 @@ String FunctionArraySlice::getName() const
 
 DataTypePtr FunctionArraySlice::getReturnTypeImpl(const DataTypes & arguments) const
 {
+    if (arguments[0]->isNull())
+        return arguments[0];
+
     auto array_type = typeid_cast<DataTypeArray *>(arguments[0].get());
     if (!array_type)
         throw Exception("First argument for function " + getName() + " must be an array but it has type "
@@ -2999,10 +3002,9 @@ DataTypePtr FunctionArraySlice::getReturnTypeImpl(const DataTypes & arguments) c
 
     for (size_t i = 1; i < arguments.size(); ++i)
     {
-        if (!arguments[i]->isNumeric())
+        if (!arguments[i]->isNumeric() && !arguments[i]->isNull())
             throw Exception("Argument " + toString(i) + " for function " + getName() + " must be numeric but it has type "
                             + arguments[i]->getName() + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-
     }
 
     return arguments[0];
@@ -3011,9 +3013,14 @@ DataTypePtr FunctionArraySlice::getReturnTypeImpl(const DataTypes & arguments) c
 void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & arguments, size_t result)
 {
     std::cerr << block.dumpStructure() << std::endl;
-    auto & result_column = block.getByPosition(result).column;
-    const DataTypePtr & return_type = block.getByPosition(result).type;
+
+    auto & result_colum_with_name_and_type = block.getByPosition(result);
+    auto & result_column = result_colum_with_name_and_type.column;
+    auto & return_type = result_colum_with_name_and_type.type;
     result_column = return_type->createColumn();
+
+    if (return_type->isNull())
+        return;
 
     auto & array_column = block.getByPosition(arguments[0]).column;
     auto & offset_column = block.getByPosition(arguments[1]).column;
