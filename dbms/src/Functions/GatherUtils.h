@@ -1145,18 +1145,22 @@ struct ArraySinkSelector<Base>
 };
 
 template <template <typename ...> typename Base>
-struct ArraySinkSourceSelector : public ArraySinkSelector<Base>, public ArraySourceSelector<Base>
+struct ArraySinkSourceSelector
 {
     template <typename ... Args>
     static void select(IArraySource & source, IArraySink & sink, Args & ... args)
     {
-        ArraySinkSelector<Base>::select(sink, source, args ...);
+        using List = typename AppendToTypeList<Base, TypeListNumber>::Type;
+        using Impl = typename ApplyTypeListForClass<ArraySinkSelector, List>::Type;
+        Impl::select(sink, source, args ...);
     }
 
     template <typename Sink, typename ... Args>
     static void selectImpl(Sink & sink, IArraySource & source, Args & ... args)
     {
-        ArraySourceSelector<Base>::select(source, sink, args ...);
+        using List = typename AppendToTypeList<Base, TypeListNumber>::Type;
+        using Impl = typename ApplyTypeListForClass<ArraySourceSelector, List>::Type;
+        Impl::select(source, sink, args ...);
     }
 
     template <typename Source, typename Sink, typename ... Args>
@@ -1512,7 +1516,6 @@ void NO_INLINE sliceDynamicOffsetBounded(Source && src, Sink && sink, IColumn & 
     sliceDynamicOffsetBounded(src, sink, offset_column, length_column);
 }
 
-template <typename ... Types>
 struct SliceFromLeftConstantOffsetUnboundedSelectArraySource
         : public ArraySinkSourceSelector<SliceFromLeftConstantOffsetUnboundedSelectArraySource>
 {
