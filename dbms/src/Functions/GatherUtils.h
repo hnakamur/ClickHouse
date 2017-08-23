@@ -1559,7 +1559,7 @@ struct SliceFromLeftConstantOffsetBoundedSelectArraySource
         : public ArraySinkSourceSelector<SliceFromLeftConstantOffsetBoundedSelectArraySource>
 {
     template <typename Source, typename Sink>
-    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, size_t & length)
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, ssize_t & length)
     {
         sliceFromLeftConstantOffsetBounded<Source, Sink>(source, sink, offset, length);
     }
@@ -1579,7 +1579,7 @@ struct SliceFromRightConstantOffsetBoundedSelectArraySource
         : public ArraySinkSourceSelector<SliceFromRightConstantOffsetBoundedSelectArraySource>
 {
     template <typename Source, typename Sink>
-    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, size_t & length)
+    static void selectSourceSink(Source & source, Sink & sink, size_t & offset, ssize_t & length)
     {
         sliceFromRightConstantOffsetBounded<Source, Sink>(source, sink, offset, length);
     }
