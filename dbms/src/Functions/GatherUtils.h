@@ -1184,9 +1184,7 @@ struct ArrayAppend : public GetArraySourceSelector<ArrayAppend>
 template <typename Sink>
 static void append(IArraySource & source, Sink & sink)
 {
-    // using List = typename AppendToTypeList<Sink, TypeListNumber>::Type;
-    using AppendImpl = typename ApplyTypeListForClass<ArrayAppend, TypeListNumber>::Type;
-    AppendImpl::select(source, sink);
+    ArrayAppend::select(source, sink);
 }
 
 
@@ -1374,10 +1372,8 @@ struct ArrayConcat : public GetArraySinkSelector<ArrayConcat>
 
 inline void concat(std::vector<std::unique_ptr<IArraySource>> & sources, IArraySink & sink)
 {
-    /// using List = typename AppendToTypeList<std::vector<std::unique_ptr<IArraySource>>, TypeListNumber>::Type;
-    using ConcatImpl = typename ApplyTypeListForClass<ArrayConcat, TypeListNumber>::Type;
     using Sources = std::vector<std::unique_ptr<IArraySource>>;
-    return ConcatImpl::select(sink, sources);
+    return ArrayConcat::select(sink, sources);
 }
 
 template <typename Source, typename Sink>
