@@ -3057,7 +3057,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
             sliceDynamicOffsetBounded(*source, *sink, *const_offset_column, *length_column);
         }
     }
-    else if (auto const_offset_column = typeid_cast<ColumnConst *>(offset_column.get()))
+    else if (offset_column->isConst())
     {
         ssize_t offset = offset_column->getUInt(0);
 

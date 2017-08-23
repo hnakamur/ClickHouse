@@ -120,7 +120,7 @@ struct NumericArraySource : public IArraySource
         return offsets.size();
     }
 
-    size_t getArraySize() const
+    size_t getElementSize() const
     {
         return offsets[row_num] - prev_offset;
     }
@@ -285,6 +285,11 @@ struct StringSource
         return elements.size();
     }
 
+    size_t getElementSize() const
+    {
+        return offsets[row_num] - prev_offset;
+    }
+
     Slice getWhole() const
     {
         return {&elements[prev_offset], offsets[row_num] - prev_offset - 1};
@@ -361,6 +366,11 @@ struct FixedStringSource
     size_t getSizeForReserve() const
     {
         return end - pos;
+    }
+
+    size_t getElementSize() const
+    {
+        return string_size;
     }
 
     Slice getWhole() const
@@ -609,7 +619,7 @@ struct GenericArraySource : public IArraySource
         return elements.size();
     }
 
-    size_t getArraySize() const
+    size_t getElementSize() const
     {
         return offsets[row_num] - prev_offset;
     }
@@ -1404,7 +1414,7 @@ void NO_INLINE sliceFromLeftConstantOffsetBounded(Source & src, Sink & sink, siz
     {
         ssize_t size = length;
         if (size < 0)
-            size += static_cast<ssize_t>(src.getArraySize()) - offset;
+            size += static_cast<ssize_t>(src.getElementSize()) - offset;
 
         if (size > 0)
             writeSlice(src.getSliceFromLeft(offset, size), sink);
@@ -1432,7 +1442,7 @@ void NO_INLINE sliceFromRightConstantOffsetBounded(Source & src, Sink & sink, si
     {
         ssize_t size = length;
         if (size < 0)
-            size += static_cast<ssize_t>(src.getArraySize()) - offset;
+            size += static_cast<ssize_t>(src.getElementSize()) - offset;
 
         if (size > 0)
             writeSlice(src.getSliceFromRight(offset, size), sink);
@@ -1478,7 +1488,7 @@ void NO_INLINE sliceDynamicOffsetBounded(Source & src, Sink & sink, IColumn & of
         if (size < 0)
         {
             Int64 elements_before_offset = offset > 0 ? offset - 1 : -offset;
-            size += static_cast<Int64>(src.getArraySize()) - elements_before_offset;
+            size += static_cast<Int64>(src.getElementSize()) - elements_before_offset;
         }
 
         if (offset != 0 && size > 0)
@@ -1506,7 +1516,7 @@ void NO_INLINE sliceFromLeftConstantOffsetUnbounded(Source && src, Sink && sink,
 }
 
 template <typename Source, typename Sink>
-void NO_INLINE sliceFromLeftConstantOffsetBounded(Source && src, Sink && sink, size_t offset, size_t length)
+void NO_INLINE sliceFromLeftConstantOffsetBounded(Source && src, Sink && sink, size_t offset, ssize_t length)
 {
     sliceFromLeftConstantOffsetBounded(src, sink, offset, length);
 }
@@ -1518,7 +1528,7 @@ void NO_INLINE sliceFromRightConstantOffsetUnbounded(Source && src, Sink && sink
 }
 
 template <typename Source, typename Sink>
-void NO_INLINE sliceFromRightConstantOffsetBounded(Source && src, Sink && sink, size_t offset, size_t length)
+void NO_INLINE sliceFromRightConstantOffsetBounded(Source && src, Sink && sink, size_t offset, ssize_t length)
 {
     sliceFromRightConstantOffsetBounded(src, sink, offset, length);
 }
