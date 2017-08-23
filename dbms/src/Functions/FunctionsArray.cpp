@@ -3023,7 +3023,7 @@ void FunctionArraySlice::executeImpl(Block & block, const ColumnNumbers & argume
         return;
 
     auto & array_column = block.getByPosition(arguments[0]).column;
-    auto & offset_column = block.getByPosition(arguments[1]).column;
+    // auto & offset_column = block.getByPosition(arguments[1]).column;
     // auto & length_column = block.getByPosition(arguments[2]).column;
 
     // result_column->reserve(array_column->size());
